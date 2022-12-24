@@ -2,3 +2,5 @@
 /resources/splash/gothergood.mp4
 /resources/tick.png
 /VG.txt
+__pycache__/
+*.py[cod]
