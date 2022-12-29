@@ -230,8 +230,10 @@ def filtersymptoms(dfsymptoms, filterword, appobj):
         freqdf=freqdf.iloc[0:100]
 
     appobj.ids['graphdata']=freqdf
+    plt.cla()
+    plt.clf()
     sns.barplot(data=freqdf, x='symptom', y='frequency')
     plt.xticks(rotation=90)
-    plt.grid()
+    plt.grid(visible=True,which='both', axis='both')
     plt.tight_layout()
 
