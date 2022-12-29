@@ -6,8 +6,17 @@ from kivy.uix.settings import SettingsWithSidebar
 
 # TODO: Add ThemeSetting and FontSetting classes extending SettingItem
 
+
 class VaeritySettings:
-    settings_keys = [('Styles',[
+    settings_keys = [('Main', [{'type': 'title', 'title': 'Styles'}, {
+        'key': 'vaersfolder',
+        'title': 'VAERS Data Path',
+        'desc': 'The path of the VAERS data folder.  Any CSV files detected in the VAERS naming conventions will be converted to HDF5 automatically and opened as a single data frame',
+        'type': 'path',
+        'section': 'main',
+        'dirselect': True}
+    ]),
+        ('Styles', [
         {'type': 'title',
         'title': 'Styles'},
         {'key': 'window.clearcolor',
@@ -141,9 +150,22 @@ class VaeritySettings:
          'desc': 'Text color of the labels in the vaccine table in the record viewer',
          'type': 'color',
          'section': 'style'
-         }
-
-    ])
+         },
+            {
+                'key': 'gridview.textcolor',
+                'title': 'Gridview text color',
+                'desc': 'Text color of the raw data grid viewer',
+                'type': 'color',
+                'section': 'style'
+            },
+            {
+                'key': 'gridview.background',
+                'title': 'Gridview text background',
+                'desc': 'Background color of the raw data grid viewer',
+                'type': 'color',
+                'section': 'style'
+            }
+        ])
     ]
 
     settings_defaults=[('style', {''
@@ -158,7 +180,11 @@ class VaeritySettings:
                                   'patientdata.background': '#111133', 'patientdata.textcolor': '#FFFFFF',
                                   'vaccinedata.background': '#111133', 'vaccinedata.textcolor': '#FFFFFF',
                                   'vaccineheader.background': '#111133', 'vaccineheader.textcolor': '#FFFFFF',
-                                  })]
+                                  'gridview.background': '#092E5B', 'gridview.textcolor': '#FFFFFF'
+                                  }),
+                       ('main', {
+                           'vaersfolder': 'D:/AllVAERSDataCSVS'
+                       })]
 
     def __init__(self):
         self.filepath=os.path.join(os.path.dirname(__file__),'vaerity.ini')
