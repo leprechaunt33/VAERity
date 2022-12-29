@@ -1,12 +1,20 @@
+# TODO: Change startup screen to move to a carousal or random image transition after the logo screen.  Update logo.
+
 import asyncio
+import importlib.util
+import json
 import random
 
 import kivy.uix.image
 from kivy.config import Config
 from kivy.uix.image import Image
+from kivy.uix.settings import SettingsWithSidebar
 from kivy.core.window import Window
+from kivy.utils import get_color_from_hex
 import pyautogui
 import sys
+
+from configsettings import VaeritySettings
 from dataquerystatscreen import DataQueryStatScreen
 
 Config.set('input', 'mouse', 'mouse,multitouch_on_demand')
@@ -150,14 +158,16 @@ class HeatMapScreen(Screen):
     def popup_grid(self):
         scrollable=ScrollView()
         boxPop=BoxLayout(orientation='vertical')
-        butSaveCsv=ColoredButton([0.1,0.1,1,1])
-        butSaveCsv.text='Save CSV'
-        butSaveCsv.color=[1,1,1,1]
-        butSaveCsv.bold=True
+        boxPop.size_hint_x=None
+        boxPop.size_hint_y=0.8
+        boxPop.bind(minimum_width=self.setter('width'))
+
+        self.currapp=App.get_running_app()
+        bgcolor=get_color_from_hex(self.currapp._vc['gridview.background'])
+        textcolor = get_color_from_hex(self.currapp._vc['gridview.textcolor'])
+        butSaveCsv=ColoredButton(bgcolor,text='Save CSV', color=textcolor, bold=True, size_hint_x=None, width = 100)
         butSaveCsv.bind(on_press=self.save_csv_dialog)
         butSaveCsv.size_hint_y=0.1
-        butSaveCsv.size_hint_x=None
-        butSaveCsv.width=100
         boxPop.add_widget(butSaveCsv)
         boxPop.add_widget(DataFrameGridView(App.get_running_app().ids['graphdata']))
         scrollable.add_widget(boxPop)
@@ -180,19 +190,23 @@ class RootWindow(App):
         self.progress = None
         self.df=dict()
         self.ids=dict()
+        self.rangedfields=dict()
+        self._vc = None
+
         Builder.load_string(_builderstring)
 
         if 'pyautogui' in sys.modules:
             pass
         elif (spec := importlib.util.find_spec('pyautogui')) is not None:
             module = importlib.util.module_from_spec(spec)
-            sys.modules[name] = module
+            sys.modules['pyautogui'] = module
             spec.loader.exec_module(module)
         else:
             print(f"can't find the pyautogui module!")
             return None
 
         self.screensize=pyautogui.size()
+        self._cse=VaeritySettings()
 
     def load_splash_screen(self,*args):
         resourcesdir=os.path.join(os.path.dirname(__file__),'resources')
@@ -202,7 +216,7 @@ class RootWindow(App):
         giffile=gifs[int(len(gifs)*random.random())]
         self.splashanim=Image(source=giffile.path, size_hint_x=None, width=480)
         self.splashtexture=self.splashanim.texture
-        self.splashheader=Image(source=os.path.join(resourcesdir,"vaers logo.png"), size_hint_x=None, width=480)
+        self.splashheader=Image(source=os.path.join(resourcesdir,"vaerity_logo.png"), size_hint_x=None, width=480)
         self.splashanim.anim_delay=1/10.0
         self.splashanim.anim_loop=0
         self.splashanim.size_hint_y=None
@@ -329,6 +343,9 @@ class RootWindow(App):
         self.ids['filterbyword'].bind(on_press=self.start_report_4)
         self.ids['histogram'].bind(on_press=self.start_report_5)
         self.ids['dataqueryscreen'].bind(on_press=self.dataqueryscreen)
+        if hasattr(self,'rangedfields'):
+            for fld in self.rangedfields.values():
+                fld.df=self.df['data']
 
     def setupdataframes(self,*args):
         self.update_status("Loading VAERSDATA dataframe")
@@ -379,6 +396,11 @@ class RootWindow(App):
 
     def build(self):
         sm = ScreenManager()
+        self.settings_cls=SettingsWithSidebar
+        self._vc=dict(self.config.items('style'))
+        self._vr = dict(self.config.items('main'))
+
+        Window.clearcolor=self._vc['window.clearcolor']
         mainscreen=Screen(name='mainscreen')
         layout = GridLayout(rows=7, cols=1)
         self.progress = ProgressBar(max=1000)
@@ -402,12 +424,24 @@ class RootWindow(App):
         Window.left=(self.screensize[0]-960)//2
 
         self.button_layout=BoxLayout(orientation='vertical', size_hint_y=None, height=250)
-        menubuttons=[Button(text='1. Vaccinations by month and sex, stack plot.'),
-                    Button(text=f"2. Hospitalisations and deaths\nby age group, filtered by year."),
-                    Button(text='3. List most common words in symptom text'),
-                    Button(text='4. Filter symptom text by common word'),
-                    Button(text='5. 2D histogram [age/days since vaccination]'),
-                    Button(text='6. Data Query Screen')
+        if 'button.textcolor' in self._vc:
+            textcolor=self._vc['button.textcolor']
+        else:
+            textcolor=self._cse.settings_defaults[0][1]['button.textcolor']
+
+        textcolor=get_color_from_hex(textcolor)
+
+        if 'button.background' in self._vc:
+            bgcolor=self._vc['button.background']
+        else:
+            bgcolor=self._cse.settings_defaults[0,1]['button.background']
+
+        menubuttons=[ColoredButton(bgcolor,text='1. Vaccinations by month and sex, stack plot.', color=textcolor),
+                    ColoredButton(bgcolor,text=f"2. Hospitalisations and deaths\nby age group, filtered by year.", color=textcolor),
+                    ColoredButton(bgcolor,text='3. List most common words in symptom text', color=textcolor),
+                    ColoredButton(bgcolor,text='4. Filter symptom text by common word', color=textcolor),
+                    ColoredButton(bgcolor,text='5. 2D histogram [age/days since vaccination]', color=textcolor),
+                    ColoredButton(bgcolor,text='6. Data Query Screen', color=textcolor)
                     ]
 
         self.button_ids=['bymonthandsex','hospreport','tokenize_symptoms','filterbyword','histogram','dataqueryscreen']
@@ -434,9 +468,23 @@ class RootWindow(App):
         self.manager=sm
         self.mainscreen=mainscreen
         self.mslayout=layout
-        Clock.schedule_once(self.startdbimport, 2)
+        if os.path.exists(self._vr['vaersfolder']):
+            Clock.schedule_once(self.startdbimport, 2)
+        else:
+            Clock.schedule_once(self.open_settings, 2)
         return sm
 
+    def build_config(self, config):
+        for tupac in self._cse.settings_defaults:
+            config.setdefaults(tupac[0],tupac[1])
+
+    def build_settings(self, settings):
+        for tupac in self._cse.settings_keys:
+            settings.add_json_panel(tupac[0], self.config, data=json.dumps(tupac[1]))
+
+    def on_config_change(self, config, section, key, value):
+        if key == 'window.clearcolor':
+            Window.clearcolor=value
 
     async def base(self):
         await self.async_run()
