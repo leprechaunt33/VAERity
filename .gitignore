@@ -4,3 +4,4 @@
 /VG.txt
 __pycache__/
 *.py[cod]
+*.ini
