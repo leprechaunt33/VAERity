@@ -12,6 +12,8 @@ from kivy.properties import NumericProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.label import Label
+from kivy.uix.popup import Popup
+from kivy.uix.progressbar import ProgressBar
 from kivy.uix.screenmanager import Screen
 from kivy.uix.splitter import Splitter
 from kivy.uix.tabbedpanel import TabbedPanel, TabbedPanelHeader
@@ -209,6 +211,7 @@ class DataQueryResultScreen(Screen):
         self.currapp.manager.current = 'statscreen'
 
     def summarize_plot(self,*args):
+        # TODO: Expand contextual heading to account for full query details
         dq=self.currapp.manager.get_screen('dataqueryscreen')
 
         subhead=''
@@ -224,12 +227,51 @@ class DataQueryResultScreen(Screen):
             else:
                 subhead = f"{subhead} for {dq.ids['STATE'].text}"
 
+        narrow_criteria=[]
+        if dq.checks['deaths0'].state == 'down':
+            narrow_criteria.append('deaths')
+
+        if dq.checks['hosp0'].state == 'down':
+            narrow_criteria.append('hospitalisations')
+
+        if dq.checks['disabled0'].state == 'down':
+            narrow_criteria.append('disabled')
+
+        if dq.checks['emergency0'].state == 'down':
+            narrow_criteria.append('ER visits')
+
+        if len(narrow_criteria) >0:
+            if len(narrow_criteria) == 1:
+                subhead = f"{subhead} narrowed to include {narrow_criteria[0]} only"
+            else:
+                subhead = f"{subhead} narrowed to include {', '.join(narrow_criteria[0:-1])} or {narrow_criteria[-1]}"
+
+            if subhead != '':
+                subhead= f"{subhead}\n"
+
+            narrow_criteria=[]
+            if dq.checks['VAX_DOSE_SERIES'].state == 'down':
+                narrow_criteria.append(f"Dose {dq.spinners['VAX_DOSE_SERIES'].text}")
+
+            if dq.checks['SEX'].state == 'down':
+                tr={'M': 'male', 'F': 'female', 'U': 'ungendered'}
+                narrow_criteria.append(f"{tr[dq.spinners['SEX'].text]} only")
+
+            if len(narrow_criteria) > 0:
+                subhead=f"{subhead}{', '.join(narrow_criteria)}"
         return subhead
 
     def stats_thread(self):
         dfs=self.currapp.df['symptoms']
         dfd=self.currapp.df['data']
+        pcounter=time.perf_counter()
         vid=dfs.VAERS_ID.tolist()
+        def statusupdate(txt,stp):
+            self._popup_status.text = f"{pcounter-time.perf_counter():.3} {txt}"
+            self._popup_progress.value = int(stp)
+
+        statusupdate("BEGIN",1)
+
         s=self.idlist[0]
         e=self.idlist[-1]
         r=e-s+1
@@ -241,7 +283,6 @@ class DataQueryResultScreen(Screen):
 
         start_time=time.perf_counter()
         print('List of list enumeration...')
-        #idx=[i for i, y in enumerate(vid) if (y>=s) & (y in sets[(y-s)//b])]
         idx=[]
         for i, y in enumerate(vid):
             try:
@@ -253,20 +294,48 @@ class DataQueryResultScreen(Screen):
         print("taking results...")
         resultset=dfs.take(idx)
         end_time =time.perf_counter()
-        print(f"That took {end_time-start_time} for a recordset of {len(self.idlist)} records")
+        statusupdate("SYMPTOM SET EXTRACTED",2)
 
         symptomset=[]
         for i in range(1,6):
             symptomset.extend([x for x in resultset[f"SYMPTOM{i}"].evaluate().to_pylist() if x is not None])
-            print(len(symptomset))
+            print(len(symptomset),end=' ')
 
         c=Counter(symptomset)
+        statusupdate("SYMPTOM SET COUNTED",3)
         plt.cla()
         plt.clf()
 
-        fig, (ax)=plt.subplots(3,3, figsize=(25,20), dpi=100)
-        plt.subplots_adjust(left=0.2, top=0.85)
+        fig, (ax)=plt.subplots(3,3, figsize=(25,25), dpi=100)
+        fig=plt.figure(figsize=(25,25), dpi=100)
+        gs0 = fig.add_gridspec(3, 3)
+
+        ax0 = fig.add_subplot(gs0[0, 0])
+        ax1 = fig.add_subplot(gs0[1, 0])
+        ax2 = fig.add_subplot(gs0[2, 0])
+        ax3 = fig.add_subplot(gs0[0, 1])
+        ax4 = fig.add_subplot(gs0[0, 2])
+        ax5 = fig.add_subplot(gs0[1, 1])
+        ax6 = fig.add_subplot(gs0[1, 2])
+        gs1 = gs0[2, 1:].subgridspec(2,1, wspace=0)
+
+        ax7 = fig.add_subplot(gs1[0])
+        ax8 = fig.add_subplot(gs1[1])
+
+        ax0.grid(visible=True, which='both', axis='both')
+        ax1.grid(visible=True, which='both', axis='both')
+        ax2.grid(visible=True, which='both', axis='both')
+        ax3.grid(visible=True, which='both', axis='both')
+        ax4.grid(visible=True, which='both', axis='both')
+        ax5.grid(visible=True, which='both', axis='both')
+        ax6.grid(visible=True, which='both', axis='both')
+        ax7.grid(visible=True, which='both', axis='both')
+        ax8.grid(visible=True, which='both', axis='both')
+
+        plt.subplots_adjust(left=0.15, top=0.9)
         fig.suptitle(self.summarize_plot(), y=0.98, fontsize=14)
+
+        statusupdate("MPL SETUP DONE",3)
 
         DIED=len(self._ds[self._ds.DIED == 'Y'])
         HOSPITAL=len(self._ds[self._ds.HOSPITAL == 'Y'])
@@ -275,14 +344,16 @@ class DataQueryResultScreen(Screen):
         OFCVISITS=len(self._ds[self._ds.OFC_VISIT == 'Y'])
         BIRTHDEFECTS=len(self._ds[self._ds.BIRTH_DEFECT == 'Y'])
         LTHREAT=len(self._ds[self._ds.L_THREAT == 'Y'])
-        BATCHES=self._ds['VAX_LOT'].nunique(dropna=True)
-        STATES=self._ds['STATE'].nunique()
-
-        xsummary=['Deaths','Hospitalisations','Life-threatening illnesses','ER visits','Disabled','Birth Defects','Office/Clinic visits']
+        statusupdate("SIMPLE FILTERS DONE",4)
+        BATCHES=self._ds['VAX_LOT'].str.upper().value_counts().sort_values(ascending=False)
+        statusupdate("BATCHES DONE",5)
+        STATES=self._ds['STATE'].str.upper().value_counts().sort_values()
+        statusupdate("STATES DONE",6)
+        xsummary=['Deaths','Hospitalisations','Life-threatening?','ER visits','Disabled','Birth Defects','Office/Clinic visits']
         ysummary=[DIED, HOSPITAL, LTHREAT, ERVISITS, DISABLED, BIRTHDEFECTS, OFCVISITS]
 
-
-        c=np.array([sorted(c.items(), key=lambda k: k[1], reverse=True)],dtype=[('s',np.dtype('U200')),('c',np.dtype('i4'))])
+        c=np.array([sorted(c.items(), key=lambda k: k[1], reverse=True)],
+                   dtype=[('s',np.dtype('U200')),('c',np.dtype('i4'))])
         if len(c['c'][0]) > 30:
             maxsym=30
         else:
@@ -290,50 +361,80 @@ class DataQueryResultScreen(Screen):
         mypal = sns.color_palette('deep')[0:maxsym]
         navals = self._ds.isnull().sum().sort_values().reset_index()
         bymanu=self._ds.VAX_MANU.value_counts().reset_index()
-
+        
         plt.rcParams['axes.grid']=True
-        sns.barplot(y=xsummary, x=ysummary, palette=mypal, ax=ax[0,0])
-        sns.barplot(y=c['s'][0,0:maxsym],x=c['c'][0,0:maxsym], palette=mypal, ax=ax[1,0])
-        sns.barplot(y=navals['index'].to_list(), x=navals[0].to_list(), ax=ax[2,0])
-        # 261 bins = up to 1825 days into 7 days per bin + 1 for integer division
-        sns.histplot(x=self._ds.NUMDAYS, binwidth=7, binrange=[0,1825], cumulative=True, ax=ax[0,1])
-        sns.histplot(x=self._ds.AGE_YRS, bins=24, ax=ax[1,1])
-        sns.histplot(x=self._ds.HOSPDAYS, bins=50, binrange=[0,49], ax=ax[2, 1])
-        sns.barplot(data=bymanu, y='index', x='VAX_MANU', palette=mypal, ax=ax[0, 2])
+        # NA values - graph at top left
+        statusupdate("MPL STARTING",7)
+        sns.barplot(y=navals['index'].to_list(), x=navals[0].to_list(), ax=ax0)
+        # Top symptoms - left, middle
+        sns.barplot(y=c['s'][0,0:maxsym],x=c['c'][0,0:maxsym], palette=mypal, ax=ax1)
+        # Incidents by manufacturer - bottom left.
+        sns.barplot(data=bymanu, y='index', x='VAX_MANU', palette=mypal, ax=ax2)
+        statusupdate("MPL 3 of 10",8)
+        # Numdays cumulative - upper middle
         out=self._ds
         sns.histplot(data=out[out.DIED == 'Y'], x="NUMDAYS", binrange=[0, 60], binwidth=1,
-                     cumulative=True, color="red", ax=ax[1,2])
+                     cumulative=True, color="red", ax=ax5)
         sns.histplot(data=out[out.HOSPITAL == 'Y'], x="NUMDAYS",
-                     binrange=[0, 60], binwidth=1, alpha=0.7, cumulative=True, color="blue", ax=ax[1,2])
+                         binrange=[0, 60], binwidth=1, alpha=0.7, cumulative=True, color="blue", ax=ax5)
         sns.histplot(data=out[(out.DISABLE == 'Y') | (out.L_THREAT == 'Y')], x="NUMDAYS",
-                     binrange=[0, 60], binwidth=1, alpha=0.5, cumulative=True, color="orange", ax=ax[1,2])
+                     binrange=[0, 60], binwidth=1, alpha=0.5, cumulative=True, color="orange", ax=ax5)
         sns.histplot(data=out[(out.ER_ED_VISIT == 'Y') | (out.ER_VISIT == 'Y')], x="NUMDAYS",
-                     binrange=[0, 60], binwidth=1, alpha=0.2, cumulative=True, color="green", ax=ax[1,2])
+                     binrange=[0, 60], binwidth=1, alpha=0.2, cumulative=True, color="green", ax=ax5)
+            # Histograms and final summary
+        statusupdate("MPL MULTIPLOT",9)
+        sns.histplot(x=self._ds.HOSPDAYS, bins=50, binrange=[0,49], ax=ax4)
+        sns.histplot(x=self._ds.AGE_YRS, bins=24, ax=ax3)
+        sns.histplot(x=self._ds.CAGE_YR, bins=24, ax=ax3, alpha=0.2)
+        sns.barplot(x=xsummary, y=ysummary, palette=mypal, ax=ax6)
 
-        ax[0,0].tick_params(axis="x", rotation=90)
-        ax[1,0].tick_params(axis="x", rotation=90)
-        ax[2,0].set_xlabel("Column")
-        ax[2,0].set_ylabel("Missing values")
-        ax[0,1].set_xlabel("Days since vaccination")
-        ax[0, 2].set_ylabel("Manufacturer")
-        ax[0, 2].set_xlabel("Number of incidents")
-        ax[0,1].set_xlim([0, min(1825,int(self._ds.NUMDAYS.max()))])
+        statusupdate("MPL HISTS DONE",10)
 
-        ax[1,1].set_xlabel("Age at vaccination")
-        print(vars(fig.figure))
+        if len(BATCHES) > 40:
+            maxbatch=40
+        else:
+            maxbatch=len(BATCHES)
+
+        sns.barplot(x=STATES.index, y=STATES.values, ax=ax7, palette=mypal)
+        sns.barplot(x=BATCHES.iloc[0:maxbatch].index, y=BATCHES.iloc[0:maxbatch].values, ax=ax8, palette=mypal)
+        statusupdate("MPL PLOT COMPLETE",10)
+
+        ax6.tick_params(axis="x", rotation=45)
+        ax8.tick_params(axis="x", rotation=45)
+
+        ax0.set_xlabel("Column")
+        ax0.set_ylabel("Missing values")
+        ax5.set_xlabel("Days since vaccination")
+        ax2.set_ylabel("Manufacturer")
+        ax2.set_xlabel("Number of incidents")
+
+        ax3.set_xlabel("Age at vaccination")
         self.showplot(plt.gcf())
 
     def statsscreen(self, *args):
-        print("Getting list of VAERS ids")
         self.idlist=sorted(self._ds['VAERS_ID'].to_list())
-        print("Starting stats thread")
         threading.Thread(target=self.stats_thread).start()
+        self._popup_progress=ProgressBar(max=10)
+        self._popup_status=Label()
+        hbox1=BoxLayout(orientation='vertical')
+        hbox1.add_widget(self._popup_progress)
+        hbox1.add_widget(self._popup_status)
+        self._popup=Popup(size_hint=(0.9,0.3), content=hbox1, title="Preparing statistics...")
+        self._popup.open()
 
     def build_navigation_strip(self):
+        # LEFT TODO: Style stats button
+        navbg=get_color_from_hex(self.currapp._vc['navbutton.background'])
+        navfg = get_color_from_hex(self.currapp._vc['navbutton.textcolor'])
+        rhbg = get_color_from_hex(self.currapp._vc['recordheader.background'])
+        rhfg = get_color_from_hex(self.currapp._vc['recordheader.textcolor'])
+        bbbg = get_color_from_hex(self.currapp._vc['backbutton.background'])
+        bbfg = get_color_from_hex(self.currapp._vc['backbutton.textcolor'])
+
         navstrip = BoxLayout(orientation='horizontal', size_hint = [1, None], height=40)
 
-        rgba=[x/255.0 for x in [9,46,91,255]]
-        btn1=ColoredButton(rgba,text='Go Back', color=[1,1,1,1],bold=True,size_hint=[None,None],
+        rgba=get_color_from_hex("#111133")
+        btn1=ColoredButton(bbbg,text='Go Back', color=bbfg,bold=True,size_hint=[None,None],
                                    width=75, height=30)
 
         btn1.bind(on_press=self.goback)
@@ -346,14 +447,13 @@ class DataQueryResultScreen(Screen):
 
         navstrip.add_widget(btn2)
 
-        lbl1=ColoredLabel(get_color_from_hex('#00FBFA'))
+        lbl1=ColoredLabel(rhbg, color=rhfg)
         lbl1.text= self.record_header()
 
         navstrip.add_widget(lbl1)
         self._rh=lbl1
 
-
-        butNavLeft = ColoredButton(rgba,text=' < ', color=[1,1,1,1],bold=True,size_hint=[None,None],
+        butNavLeft = ColoredButton(navbg,text=' < ', color=navfg,bold=True,size_hint=[None,None],
                                    width=30, height=30)
         butNavLeft.bind(on_press=self.navLeft)
 
@@ -363,7 +463,7 @@ class DataQueryResultScreen(Screen):
         navstrip.add_widget(navIndex)
         self._navIndex=navIndex
         self._navIndex.bind(on_text_validate=self.attempt_navigate)
-        butNavRight=ColoredButton(rgba,text=' > ', color=[1,1,1,1], bold = True, size_hint=[None,None],
+        butNavRight=ColoredButton(navbg,text=' > ', color=navfg, bold = True, size_hint=[None,None],
                                   width=30, height=30)
 
         butNavRight.bind(on_press=self.navRight)
@@ -372,8 +472,19 @@ class DataQueryResultScreen(Screen):
 
     def build_record_panel(self):
         vbox1=BoxLayout(orientation='vertical')
-        hbox1=BoxLayout(orientation='horizontal')
-        lbl1=ColoredLabel(get_color_from_hex('#1FF7FC'), text='PATIENT DATA', bold=True, markup=True)
+        hbox1=BoxLayout(orientation='horizontal', padding=5)
+        bglabel=get_color_from_hex(self.currapp._vc['patientdata.background'])
+        pdfg=get_color_from_hex(self.currapp._vc['patientdata.textcolor'])
+        ehbg=get_color_from_hex(self.currapp._vc['eventheader.background'])
+        ehfg=get_color_from_hex(self.currapp._vc['eventheader.textcolor'])
+        vdbg=get_color_from_hex(self.currapp._vc['vaccinedata.background'])
+        vdfg=get_color_from_hex(self.currapp._vc['vaccinedata.textcolor'])
+        vhbg=get_color_from_hex(self.currapp._vc['vaccineheader.background'])
+        vhfg=get_color_from_hex(self.currapp._vc['vaccineheader.textcolor'])
+        tboxbg = get_color_from_hex(self.currapp._vc['textbox.background'])
+        tboxfg = get_color_from_hex(self.currapp._vc['textbox.textcolor'])
+
+        lbl1=ColoredLabel(bglabel, text='PATIENT DATA', bold=True, markup=True, color=pdfg, padding=[5, 5])
 
         self.ids['patient']=lbl1
         lbl1.bind(on_ref_press=self.narrow_state)
@@ -382,7 +493,7 @@ class DataQueryResultScreen(Screen):
         glayout=GridLayout(cols=4)
 
         # Onset
-        lbl1=ColoredLabel(get_color_from_hex('#1FF7FC'), text='Onset Date:', size_hint_y=None,
+        lbl1=ColoredLabel(ehbg, text='Onset Date:', size_hint_y=None, color=ehfg,
                               height=40)
 
         glayout.add_widget(lbl1)
@@ -392,7 +503,7 @@ class DataQueryResultScreen(Screen):
         glayout.add_widget(fld1)
 
         # Vax Date
-        lbl2 = ColoredLabel(get_color_from_hex('#1FF7FC'), text='Vaccinated On:', size_hint_y=None,
+        lbl2 = ColoredLabel(ehbg, text='Vaccinated On:', size_hint_y=None, color=ehfg,
                      height=40)
 
         glayout.add_widget(lbl2)
@@ -402,7 +513,7 @@ class DataQueryResultScreen(Screen):
         glayout.add_widget(fld2)
 
         # NUMDAYS
-        lbl3 = ColoredLabel(get_color_from_hex('#1FF7FC'), text='Days since vaccination:', size_hint_y=None,
+        lbl3 = ColoredLabel(ehbg, text='Days since vaccination:', size_hint_y=None, color=ehfg,
                      height=40)
         glayout.add_widget(lbl3)
 
@@ -411,7 +522,7 @@ class DataQueryResultScreen(Screen):
         glayout.add_widget(fld3)
 
         # L_THREAT
-        lbl4 = ColoredLabel(get_color_from_hex('#1FF7FC'), text='Life threatening?', size_hint_y=None,
+        lbl4 = ColoredLabel(ehbg, text='Life threatening?', size_hint_y=None, color=ehfg,
                      height=40)
         glayout.add_widget(lbl4)
 
@@ -420,7 +531,7 @@ class DataQueryResultScreen(Screen):
         glayout.add_widget(fld4)
 
         # Covers DISABLE HOSPITAL DIED ER_VISIT ER_ED_VISIT
-        lbl5 = ColoredLabel(get_color_from_hex('#1FF7FC'), text='Classification:', size_hint_y=None,
+        lbl5 = ColoredLabel(ehbg, text='Classification:', size_hint_y=None, color=ehfg,
                      height=40)
         glayout.add_widget(lbl5)
 
@@ -428,7 +539,7 @@ class DataQueryResultScreen(Screen):
         self.ids['classification'] = fld5
         glayout.add_widget(fld5)
 
-        lbl6 = ColoredLabel(get_color_from_hex('#1FF7FC'), text='Hospital stay', size_hint_y=None,
+        lbl6 = ColoredLabel(ehbg, text='Hospital stay', size_hint_y=None, color=ehfg,
                      height=40)
         glayout.add_widget(lbl6)
 
@@ -442,7 +553,7 @@ class DataQueryResultScreen(Screen):
         vbox1.add_widget(splitr)
 
         hbox1=BoxLayout(orientation='horizontal', size_hint=[1, None], height=50)
-        lbl1=ColoredLabel(get_color_from_hex('#1FF7FC'), text='VACCINE DATA', size_hint_y=None,
+        lbl1=ColoredLabel(vdbg, text='VACCINE DATA', size_hint_y=None, color=vdfg,
                               height=40, bold=True)
 
         self.ids['vaccine']=lbl1
@@ -452,7 +563,7 @@ class DataQueryResultScreen(Screen):
         glayout=GridLayout(cols=4)
 
         # VAX_TYPE
-        lbl1=ColoredLabel(get_color_from_hex('#1FF7FC'), text='Vaccine Type:', size_hint_y=None,
+        lbl1=ColoredLabel(vhbg, text='Vaccine Type:', size_hint_y=None, color=vhfg,
                               height=40)
 
         glayout.add_widget(lbl1)
@@ -463,7 +574,7 @@ class DataQueryResultScreen(Screen):
         glayout.add_widget(fld1)
 
         # VAX_MANU
-        lbl2=ColoredLabel(get_color_from_hex('#1FF7FC'), text='Vaccine Manufacturer:', size_hint_y=None,
+        lbl2=ColoredLabel(vhbg, text='Vaccine Manufacturer:', size_hint_y=None, color=vhfg,
                               height=40)
 
         glayout.add_widget(lbl2)
@@ -473,7 +584,7 @@ class DataQueryResultScreen(Screen):
         glayout.add_widget(fld2)
 
         # VAX_DOSE_SERIES
-        lbl3=ColoredLabel(get_color_from_hex('#1FF7FC'), text='Dose Number:', size_hint_y=None,
+        lbl3=ColoredLabel(vhbg, text='Dose Number:', size_hint_y=None, color=vhfg,
                               height=40)
 
         glayout.add_widget(lbl3)
@@ -483,7 +594,7 @@ class DataQueryResultScreen(Screen):
         glayout.add_widget(fld3)
 
         # VAX_LOT
-        lbl4=ColoredLabel(get_color_from_hex('#1FF7FC'), text='Lot Number:', size_hint_y=None,
+        lbl4=ColoredLabel(vhbg, text='Lot Number:', size_hint_y=None, color=vhfg,
                               height=40)
 
         glayout.add_widget(lbl4)
@@ -494,7 +605,7 @@ class DataQueryResultScreen(Screen):
         glayout.add_widget(fld4)
 
         # VAX_SITE
-        lbl5=ColoredLabel(get_color_from_hex('#1FF7FC'), text='Vax Site:', size_hint_y=None,
+        lbl5=ColoredLabel(vhbg, text='Vax Site:', size_hint_y=None, color=vhfg,
                               height=40)
 
         glayout.add_widget(lbl5)
@@ -504,7 +615,7 @@ class DataQueryResultScreen(Screen):
         glayout.add_widget(fld5)
 
         # VAX_MANU
-        lbl6=ColoredLabel(get_color_from_hex('#1FF7FC'), text='Vaccine Route:', size_hint_y=None,
+        lbl6=ColoredLabel(vhbg, text='Vaccine Route:', size_hint_y=None, color=vhfg,
                               height=40)
 
         glayout.add_widget(lbl6)
@@ -522,37 +633,37 @@ class DataQueryResultScreen(Screen):
 
         tph1=TabbedPanelHeader(text="Symptom Text")
         tpanel.add_widget(tph1)
-        content1=TextInput(readonly=True, multiline=True)
+        content1=TextInput(readonly=True, multiline=True, foreground_color=tboxfg, background_color=tboxbg)
         self.ids['symptomtext']=content1
         tph1.content=content1
 
         tph0=TabbedPanelHeader(text="Lab Data")
         tpanel.add_widget(tph0)
-        content0=TextInput(readonly=True, multiline=True)
+        content0=TextInput(readonly=True, multiline=True, foreground_color=tboxfg, background_color=tboxbg)
         self.ids['labdata']=content0
         tph0.content=content0
 
         tph2=TabbedPanelHeader(text="Medications")
         tpanel.add_widget(tph2)
-        content2=TextInput(readonly=True, multiline=True)
+        content2=TextInput(readonly=True, multiline=True, foreground_color=tboxfg, background_color=tboxbg)
         self.ids['medications']=content2
         tph2.content=content2
 
         tph3=TabbedPanelHeader(text="Allergies")
         tpanel.add_widget(tph3)
-        content3=TextInput(readonly=True, multiline=True)
+        content3=TextInput(readonly=True, multiline=True, foreground_color=tboxfg, background_color=tboxbg)
         self.ids['allergies']=content3
         tph3.content=content3
 
         tph4=TabbedPanelHeader(text="History")
         tpanel.add_widget(tph4)
-        content4=TextInput(readonly=True, multiline=True)
+        content4=TextInput(readonly=True, multiline=True, foreground_color=tboxfg, background_color=tboxbg)
         self.ids['history']=content4
         tph4.content=content4
 
         tph5=TabbedPanelHeader(text="Current")
         tpanel.add_widget(tph5)
-        content5=TextInput(readonly=True, multiline=True)
+        content5=TextInput(readonly=True, multiline=True, foreground_color=tboxfg, background_color=tboxbg)
         self.ids['current']=content5
         tph5.content=content5
 
