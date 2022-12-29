@@ -125,17 +125,11 @@ async def main():
                 pass
 
 async def runtasks():
-    print("Instantiating rootwindow()")
     rootspace=RootWindow()
-    print("Creating task")
-    #task1= await asyncio.create_task()
-    #task2= await asyncio.create_task(main())
     await asyncio.sleep(0)
-    print("Executing task")
     taskoutput = await asyncio.gather(rootspace.base())
 
 
 
 if __name__ == "__main__":
-    print("YAY")
     asyncio.run(runtasks())
