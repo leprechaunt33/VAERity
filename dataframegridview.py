@@ -1,4 +1,8 @@
+# TODO: Transition gridview to be within a scrollview and set meaningful sizes for column headers
+# TODO: Possible zoom functionality on KivyFigureCanvasAgg via touch gestures or scrollview.
 import kivy.graphics
+import numpy as np
+from kivy.app import App
 from kivy.lang import Builder
 from kivy.properties import NumericProperty
 from kivy.uix.button import Button
@@ -11,11 +15,15 @@ from kivy.uix.textinput import TextInput
 import pandas as pd
 import re
 
+from kivy.utils import get_color_from_hex
+
+
 class ColoredButton(Button):
     def __init__(self, bcolor, **kwargs):
         super().__init__(**kwargs)
+        self.background_color=bcolor
         with self.canvas.before:
-            Color(bcolor)
+            Color(*bcolor)
             self._rect=Rectangle(pos=self.center, size=(self.width/2., self.height/2.))
         self.bind(pos=self.update_rect, size=self.update_rect)
 
@@ -24,11 +32,11 @@ class ColoredButton(Button):
         self._rect.pos=self.pos
         self._rect.size=self.size
 
-class ColoredLabel(Button):
+class ColoredLabel(Label):
     def __init__(self, bcolor, **kwargs):
         super().__init__(**kwargs)
         with self.canvas.before:
-            Color(bcolor)
+            Color(*bcolor)
             self._rect=Rectangle(pos=self.center, size=(self.width/2., self.height/2.))
         self.bind(pos=self.update_rect, size=self.update_rect)
 
@@ -50,15 +58,32 @@ class BorderBoxLayout(BoxLayout):
         self._rect.size=self.size
 
 class DataFrameGridViewRow(BoxLayout):
-    def __init__(self, rowdata: list, **kwargs):
+    def __init__(self, rowdata: list, keys: dict, **kwargs):
         super().__init__(**kwargs)
+        self.currapp=App.get_running_app()
+        bgcolor=get_color_from_hex(self.currapp._vc['label.background'])
+        fgcolor = get_color_from_hex(self.currapp._vc['label.textcolor'])
         self.orientation='horizontal'
+        self.size_hint_x=None
+        self.bind(minimum_width=self.setter('width'))
+
+        i=0
+        if keys is None:
+            keys=dict()
+
+        cols=list(keys.keys())
+
         for item in rowdata:
-            boxcolumns=Label()
+            boxcolumns=ColoredLabel(bgcolor, color=fgcolor, text=str(item), size_hint_x=None, width=150)
             boxcolumns.halign='left'
             boxcolumns.valign='top'
-            boxcolumns.text=str(item)
             self.add_widget(boxcolumns)
+            if keys[cols[i]] > 10:
+                boxcolumns.width=300
+                boxcolumns.text_size=(300,None)
+                boxcolumns.height=boxcolumns.texture_size[1]
+
+            i+=1
 
 class DataFrameGridView(BoxLayout):
     start_index = NumericProperty(0)
@@ -69,9 +94,10 @@ class DataFrameGridView(BoxLayout):
         lastindex=self.start_index + self.screen_size
         if lastindex >= len(self._df):
             lastindex=len(self._df)
+
         for rowid in range(self.start_index,lastindex):
             datarow= self._df.iloc[rowid].to_list()
-            boxrow=DataFrameGridViewRow(datarow)
+            boxrow=DataFrameGridViewRow(datarow,self.lengths)
             self._center_layout.add_widget(boxrow)
 
     def navRight(self,*args):
@@ -107,58 +133,60 @@ class DataFrameGridView(BoxLayout):
         navlayout.size_hint_y=None
         navlayout.height=50
 
-        rgba=[x/255.0 for x in [9,46,91,255]]
-        butNavLeft = ColoredButton(rgba,text=' < ')
-        butNavLeft.background_color=rgba
-        butNavLeft.color=[1,1,1,1]
-        butNavLeft.bold=True
+        rgba=get_color_from_hex(self.currapp._vc['navbutton.background'])
+        fgcolor = get_color_from_hex(self.currapp._vc['navbutton.textcolor'])
+
+        butNavLeft = ColoredButton(rgba,text=' < ', color=fgcolor, bold=True, size_hint=(None, None), width=30, height=30)
         butNavLeft.bind(on_press=self.navLeft)
-        butNavLeft.size_hint=(None, None)
-        butNavLeft.width=30
-        butNavLeft.height = 30
 
         navlayout.add_widget(butNavLeft)
-        navIndex=TextInput(multiline=False)
-        navIndex.size_hint_x=None
-        navIndex.size_hint_y=None
-        navIndex.width=60
-        navIndex.height=30
+        navIndex=TextInput(multiline=False, size_hint=(None, None), width=60, height=30, text=str(self.start_index))
         navIndex.halign='center'
-        navIndex.text=str(self.start_index)
         navlayout.add_widget(navIndex)
         self._navIndex=navIndex
         self._navIndex.bind(on_text_validate=self.attempt_navigate)
-        butNavRight=ColoredButton(rgba,text=' > ')
-        butNavRight.background_color=rgba
-        butNavRight.color=[1,1,1,1]
-        butNavRight.bold=True
-        butNavRight.size_hint=(None, None)
-        butNavRight.width=30
-        butNavRight.height = 30
+
+        butNavRight=ColoredButton(rgba,text=' > ', color=fgcolor, bold=True, size_hint=(None, None), width=30, height=30)
         butNavRight.bind(on_press=self.navRight)
         navlayout.add_widget(butNavRight)
         return navlayout
 
     def build_column_headers(self):
-        boxheaders=BoxLayout(orientation='horizontal')
+        boxheaders=BoxLayout(orientation='horizontal', size_hint_x=None)
+        boxheaders.bind(minimum_width=boxheaders.setter('width'))
         column_names=self._df.columns.to_list()
-        rgba=[x/255.0 for x in [151, 166, 191, 255]]
+        rgba=get_color_from_hex(self.currapp._vc['label.background'])
+        fgcolor = get_color_from_hex(self.currapp._vc['label.textcolor'])
+
+        col_len=[]
         for col in column_names:
-            colheader=ColoredLabel(rgba)
-            colheader.text=col
-            colheader.color=[0,0,0,1]
-            if len(column_names) <=5:
-                colheader.size_hint_x=1/len(column_names)
-            colheader.size_hint_y=None
-            colheader.height=50
+            col_len.append(len(max(self._df[col].values.astype('str'), key=len)))
+            print(col)
+
+        self.lengths = dict(zip(column_names, col_len))
+
+        self.colnames=column_names
+        for col in column_names:
+            colheader=ColoredLabel(rgba, text=col, color=fgcolor, size_hint=(None,None),
+                                   height=50, width=150
+                                   )
+            if self.lengths[col] > 10:
+                colheader.width=300
+                colheader.text_size=(300,None)
+
             boxheaders.add_widget(colheader)
         return boxheaders
 
     def __init__(self, source: pd.DataFrame, **kwargs):
         super().__init__(**kwargs)
+        self.currapp=App.get_running_app()
         self._df=source
         self.orientation='vertical'
-        self._center_layout=BoxLayout(orientation='vertical')
+        self.size_hint_x=None
+        self.size_hint_y=1
+        self.bind(minimum_width=self.setter('width'))
+        self._center_layout=BoxLayout(orientation='vertical', size_hint_x=None)
+
         self.add_widget(self.build_column_headers())
         self.add_widget(self._center_layout)
         self._navheader=self.build_navigation()
