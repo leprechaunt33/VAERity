@@ -13,6 +13,7 @@ from kivy.uix.label import Label
 from kivy.uix.popup import Popup
 from kivy.uix.screenmanager import Screen
 from kivy.uix.scrollview import ScrollView
+from kivy.utils import get_color_from_hex
 
 from dataframegridview import ColoredButton
 from kivy.garden.matplotlib import FigureCanvasKivyAgg
@@ -81,15 +82,16 @@ class DataQueryStatScreen(Screen):
         self.currapp.manager.current = 'resultscreen'
 
     def set_figure(self,fig):
-        for widget in self._vbox.walk():
+        for widget in self._sv.walk():
             if isinstance(widget,kivy.garden.matplotlib.FigureCanvasKivyAgg):
-                self._vbox.remove_widget(widget)
+                widget.parent.remove_widget(widget)
 
         ka=FigureCanvasKivyAgg(fig)
         ka.size_hint=(None,None)
-        ka.width=1600
-        ka.height=1200
-        self._vbox.add_widget(ka)
+        ka.width=2500
+        ka.height=2500
+        #ka.pos_hint=(1,None)
+        self._sv.add_widget(ka)
 
     def dismiss_popup(self):
         if self._popup is not None:
@@ -115,29 +117,45 @@ class DataQueryStatScreen(Screen):
                             size_hint=(0.7, 0.7))
         self._popup.open()
 
+    def on_resize(self, *args):
+        self._sv.height=self._vbox2.height-55
+        print(self.width,Window.width,self.height,Window.height)
+        print(self._vbox2.width,self._vbox2.height, self._vbox.width, self._vbox.height, self._sv.width, self._sv.height)
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.currapp=App.get_running_app()
 
-        #Factory.register('LoadDialog', cls=LoadDialog)
-        #Factory.register('SaveDialog', cls=SaveDialog)
         Builder.load_string(_builderstring)
+        btnbg=get_color_from_hex(self.currapp._vc['button.background'])
+        btnfg = get_color_from_hex(self.currapp._vc['button.textcolor'])
 
-        vbox=BoxLayout(orientation = 'vertical', size_hint=(None,None), height=1300, width=1600)
-        vbox.bind(minimum_height=self.setter('height'))
-        hbox1=BoxLayout(orientation = 'horizontal')
-        btn1=ColoredButton([0.15,0.15,0.15,1],text="Go Back", size_hint=(None, None), width=60, height=50)
+        # Outer BoxLayout vertical
+        vbox2 = FloatLayout(size_hint=(1, 1))
+
+        # Horizontal boxlayout as row 1 of outer vbox2, with two sized buttons as content
+        hbox1=BoxLayout(orientation = 'horizontal', size_hint=(1,None), height=50)
+        btn1=ColoredButton(btnbg,text="Go Back", size_hint=(None, None), width=60, height=50, color=btnfg)
         btn1.bind(on_press=self.goback)
-        hbox1.add_widget(btn1)
+        btn1.pos_hint={'x': 0, 'top': 1}
 
-        btn2=ColoredButton([0.15,0.15,0.15,1],text="Save figure", size_hint=(None, None), width=100, height=50)
+        btn2=ColoredButton(btnbg,text="Save figure", size_hint=(None, None), width=100, height=50, color=btnfg)
         btn2.bind(on_press=self.save_figure)
-        hbox1.add_widget(btn2)
+        btn2.pos_hint = {'x': 0.2, 'top': 1}
+        vbox2.add_widget(btn1)
+        vbox2.add_widget(btn2)
 
-        vbox.add_widget(hbox1)
+        vbox=BoxLayout(orientation = 'vertical', size_hint=(None,None), height=2500, width=2500)
+        vbox.bind(minimum_height=self.setter('height'))
 
-        sv=ScrollView(size_hint=(1, None), size=(Window.width, Window.height))
-        sv.add_widget(vbox)
+        sv=ScrollView(size_hint=(1, 0.9))
+        sv.pos_hint={'x': 0, 'top': 0.9}
 
         self._vbox=vbox
-        self.add_widget(sv)
+        self._sv=sv
+        self._vbox2=vbox2
+
+        # ScrollViewer within outer vertical box
+        vbox2.add_widget(sv)
+        # Outer vertical box as child of Screen
+        self.add_widget(vbox2)
