@@ -416,7 +416,6 @@ class RootWindow(App):
         box1.add_widget(self.progress)
         box1.add_widget(self.windowstatus)
         layout.add_widget(box1)
-        print(box2.height, box1.height, box1.minimum_height)
 
         Window.size = (960,600)
         Window.borderless=1
@@ -457,7 +456,7 @@ class RootWindow(App):
                 self.button_layout.add_widget(boxn)
             butnum += 1
 
-        self.title="VAERS Local Interface"
+        self.title="VAERity"
 
         mainscreen.add_widget(layout)
         sm.add_widget(mainscreen)
@@ -485,6 +484,9 @@ class RootWindow(App):
     def on_config_change(self, config, section, key, value):
         if key == 'window.clearcolor':
             Window.clearcolor=value
+
+        # TODO: on change of VAERS folder, check that it exists, and if so
+        #  call the database initialization code
 
     async def base(self):
         await self.async_run()
