@@ -191,6 +191,7 @@ class RootWindow(App):
         self.df=dict()
         self.ids=dict()
         self.rangedfields=dict()
+        self.regexfields=dict()
         self._vc = None
 
         Builder.load_string(_builderstring)
@@ -346,6 +347,11 @@ class RootWindow(App):
         if hasattr(self,'rangedfields'):
             for fld in self.rangedfields.values():
                 fld.df=self.df['data']
+
+        if hasattr(self,'regexfields'):
+            for fld in self.regexfields.values():
+                fld.df=self.df['data']
+
 
     def setupdataframes(self,*args):
         self.update_status("Loading VAERSDATA dataframe")
