@@ -62,7 +62,7 @@ ep_packages = ["vaex.memory.tracker", 'vaex.dataset.opener']
 hiddenimports, runtime_hooks = prepare_entrypoints(ep_packages)
 hiddenimports.append('frozendict')
 hiddenimports.append('vaex.viz')
-
+hiddenimports.extend(['win32file','win32timezone'])
 block_cipher = None
 
 print(hiddenimports)
