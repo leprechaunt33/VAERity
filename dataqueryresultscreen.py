@@ -1,12 +1,16 @@
-import json
+import math
+import re
 import threading
 import time
+from collections import Counter
 
+import inscriptis
+import klembord
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import matplotlib.pyplot as plt
-from collections import Counter
+from kivy.app import App
 from kivy.clock import mainthread, Clock
 from kivy.properties import NumericProperty
 from kivy.uix.boxlayout import BoxLayout
@@ -18,11 +22,9 @@ from kivy.uix.screenmanager import Screen
 from kivy.uix.splitter import Splitter
 from kivy.uix.tabbedpanel import TabbedPanel, TabbedPanelHeader
 from kivy.uix.textinput import TextInput
-from kivy.app import App
-from dataframegridview import ColoredButton, ColoredLabel
 from kivy.utils import get_color_from_hex
-import re, math
 
+from dataframegridview import ColoredButton, ColoredLabel
 from regextextfield import RegexTextField
 
 
@@ -31,6 +33,99 @@ class DataQueryResultScreen(Screen):
     screen_size = NumericProperty(1)
     _ds: pd.DataFrame = None
 
+    def copy_to_clipboard(self,*args):
+        r=self._ds.iloc[self.start_index]
+        sdf=self.currapp.df['symptoms']
+        syms=[]
+        symrows=sdf[sdf.VAERS_ID == r.VAERS_ID].to_dict()
+        for i in range(1, 6):
+            syms.extend([x for x in map(lambda s: s.as_py(),symrows[f"SYMPTOM{i}"]) if ((x is not None) and (len(x)>0))])
+
+        evthtml=f"""
+<head>
+    <style="text/css">
+.patientdata {{
+    font-weight: bold
+    background-color: {self.currapp._vc['patientdata.background']}
+    color: {self.currapp._vc['patientdata.textcolor']}
+}}
+
+    </style>
+</head>
+<table id="patienttable">
+<thead>
+<th colspan=4>
+<div id="patientdata"><header><h3>[VAERS: {r.VAERS_ID}]<br />
+PATIENT (<data class="patientdata, sex" value="{self.formatmissing(r.SEX)}">{self.formatmissing(r.SEX)}</data>,
+  <data class="patientdata, age" value="{self.formatmissing(r.CAGE_YR)}">{self.formatmissing(r.CAGE_YR)}</data>,
+  <data class="patientdata, state" value="{self.formatmissing(r.STATE)}">{self.formatmissing(r.STATE)}</data>)</h3></header>
+  <details><summary>{len(syms)} symptom(s)</summary><br>
+  {", ".join(f'<data value="{s}">{s}</data>' for s in syms)}</details>
+</header></div>
+</th>
+</thead>
+<tr>
+    <th>Onset Date</th>
+    <td><data value="{self.formatmissing(r.ONSET_DATE)}"><time>{self.formatmissing(r.ONSET_DATE)}</time></data></td>
+    <th>Vaccinated On</th>
+    <td><data value="{self.formatmissing(r.VAX_DATE)}"><time>{self.formatmissing(r.VAX_DATE)}</time></data></td>
+</tr><tr>
+    <th>Days since vaccination</th>
+    <td><data value="{self.formatmissing(r.NUMDAYS)}">{self.formatmissing(r.NUMDAYS)}</data></td>
+    <th>Life threatening?</th>
+    <td><data value="{self.boolformat(r.L_THREAT)}">{self.boolformat(r.L_THREAT)}</data></td>
+</tr><tr>
+    <th>Classification</th>
+    <td><data value="{" ".join(self.getRecordAttributes(r))}">{" ".join(self.getRecordAttributes(r))}</data></td>
+    <th>Hospital Stay</th>
+    <td><data value="{self.formatmissing(r.HOSPDAYS)}">{self.formatmissing(r.HOSPDAYS)} days, {self.boolformat(r.X_STAY, 'E','NE')}</data></td>
+</tr>
+</table>
+<table id="vaccinedata">
+<tr>
+<thead>
+<th colspan=4><div class="vaccinedata">VACCINE DATA</div></th>
+</thead>
+</tr><tr>
+    <th>Vaccine Type</th>
+    <td><data value="{self.formatmissing(r.VAX_TYPE)}">{self.formatmissing(r.VAX_TYPE)}</data></td>
+    <th>Vaccine Manufacturer</th>
+    <td><data value="{self.formatmissing(r.VAX_MANU)}">{self.formatmissing(r.VAX_MANU)}</data></td>
+</tr><tr>
+    <th>Dose Number</th>
+    <td><data value="{self.formatmissing(r.VAX_DOSE_SERIES)}">{self.formatmissing(r.VAX_DOSE_SERIES)}</data></td>
+    <th>Lot Number</th>
+    <td><data value="{self.formatmissing(r.VAX_LOT)}">{self.formatmissing(r.VAX_LOT)}</data></td>
+</tr><tr>
+    <th>Vax Site</th>
+    <td><data value="{self.formatmissing(r.VAX_SITE)}">{self.formatmissing(r.VAX_SITE)}</data></td>
+    <th>Vaccine Route</th>
+    <td><data value="{self.formatmissing(r.VAX_ROUTE)}">{self.formatmissing(r.VAX_ROUTE)}</data></td>
+</tr><tr>
+</table>
+<table id='detailstable'>
+<tr>
+<td><h4>SYMPTOM TEXT</h4></td>
+<td><textarea id='symptomtext'>{self.formatmissing(r.SYMPTOM_TEXT)}</textarea></td>
+</tr><tr>
+<td><h4>LAB DATA</h4></td>
+<td><textarea id='labdata'>{self.formatmissing(r.LAB_DATA)}</textarea></td>
+</tr><tr>
+<td><h4>MEDICATIONS</h4></td>
+<td><textarea id='medicationst'>{self.formatmissing(r.OTHER_MEDS)}</textarea></td>
+</tr><tr>
+<td><h4>ALLERGIES</h4></td>
+<td><textarea id='symptomtext'>{self.formatmissing(r.ALLERGIES)}</textarea></td>
+</tr><tr>
+<td><h4>PRIOR HISTORY</h4></td>
+<td><textarea id='symptomtext'>{self.formatmissing(r.HISTORY)}</textarea></td>
+</tr><tr>
+<td><h4>CURRENT ILLNESSES</h4></td>
+<td><textarea id='symptomtext'>{self.formatmissing(r.CUR_ILL)}</textarea></td>
+</tr>
+</table>
+        """
+        klembord.set_with_rich_text(inscriptis.get_text(evthtml), evthtml)
     def goback(self, *args):
         dq = self.manager.get_screen('dataqueryscreen')
         # Clear the form so hidden filters don't stay set
@@ -124,7 +219,7 @@ class DataQueryResultScreen(Screen):
         self.ids['numdays'].text=self.formatmissing(row.NUMDAYS)
         self.ids['classification'].text=" ".join(self.getRecordAttributes(row))
         self.ids['lthreat'].text=self.boolformat(row.L_THREAT)
-        self.ids['x_stay'].text=f"{self.formatmissing(row.HOSPDAYS)} days, {self.boolformat(row.X_STAY, 'E','NE')}"
+        self.ids['x_stay'].text=f"{self.formatmissing(row.HOSPDAYS)} days, {self.boolformat(row.X_STAY, 'E','NE','NE')}"
         self.ids['vaxtype'].text= f"[ref=vaxtype][color=#6666FF][u]{self.formatmissing(row.VAX_TYPE)}[/u][/color][/ref]"
         self.ids['vaxmanu'].text = self.formatmissing(row.VAX_MANU)
         self.ids['vaxroute'].text = self.formatmissing(row.VAX_ROUTE)
@@ -452,6 +547,13 @@ class DataQueryResultScreen(Screen):
         btn2.bind(on_press=self.statsscreen)
 
         navstrip.add_widget(btn2)
+
+        btn3=ColoredButton(bbbg,text='To Clipboard', color=bbfg,bold=True,size_hint=[None,None],
+                                   width=90, height=30)
+
+        btn3.bind(on_press=self.copy_to_clipboard)
+
+        navstrip.add_widget(btn3)
 
         lbl1=ColoredLabel(rhbg, color=rhfg)
         lbl1.text= self.record_header()
