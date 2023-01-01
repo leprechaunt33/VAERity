@@ -23,6 +23,9 @@ from dataframegridview import ColoredButton, ColoredLabel
 from kivy.utils import get_color_from_hex
 import re, math
 
+from regextextfield import RegexTextField
+
+
 class DataQueryResultScreen(Screen):
     start_index = NumericProperty(0)
     screen_size = NumericProperty(1)
@@ -100,8 +103,11 @@ class DataQueryResultScreen(Screen):
             self._polling=True
             Clock.schedule_once(self.query_batch)
         else:
-            dq.set_checkbox('VAX_LOT','down')
-            dq.set_textinput('VAX_LOT',self._ds.iloc[self.start_index].VAX_LOT)
+            vl: RegexTextField=dq.ids['VAX_LOT']
+            #dq.set_checkbox('VAX_LOT','down')
+            #dq.set_textinput('VAX_LOT',self._ds.iloc[self.start_index].VAX_LOT)
+            vl.set_text(self._ds.iloc[self.start_index].VAX_LOT)
+            vl.set_isregex(True)
             self.start_index=0
             self.manager.current = 'dataqueryscreen'
             self._polling=False
