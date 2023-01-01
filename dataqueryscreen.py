@@ -20,6 +20,7 @@ from kivy.uix.spinner import Spinner
 import traceback
 from dataqueryresultscreen import DataQueryResultScreen
 from rangednumericfield import RangedNumericField
+from regextextfield import RegexTextField
 
 
 class DataQueryViewScreen(Screen):
@@ -91,6 +92,8 @@ class DataQueryViewScreen(Screen):
 
         fenumdays=self.ids['NUMDAYS'].filter_expression()
         fehospdays = self.ids['HOSPDAYS'].filter_expression()
+        fecageyears = self.ids['CAGE_YR'].filter_expression()
+        feageyears = self.ids['AGE_YRS'].filter_expression()
 
         if fenumdays is not None:
             filterset=filterset.filter(fenumdays,'and')
@@ -99,6 +102,14 @@ class DataQueryViewScreen(Screen):
         if fehospdays is not None:
             filterset=filterset.filter(fehospdays,'and')
             rs_stats.extend(['HOSPDAYS', len(filterset)])
+
+        if fecageyears is not None:
+            filterset=filterset.filter(fecageyears,'and')
+            rs_stats.extend(['CAGE_YR', len(filterset)])
+
+        if feageyears is not None:
+            filterset=filterset.filter(feageyears,'and')
+            rs_stats.extend(['AGE_YRS', len(filterset)])
 
         if self.checks['relab'].state == 'down':
             filterset=filterset.filter(f"str_contains(LAB_DATA,'{self.ids['relabtxt'].text}')",'and')
@@ -160,8 +171,9 @@ class DataQueryViewScreen(Screen):
 
         self._statusfield.text=f"{len(filterset)} records..."
 
-        if self.checks['VAX_LOT'].state == 'down':
-            filterset=filterset.filter(f"str_upper(VAX_LOT)=='{str.upper(self.ids['VAX_LOT'].text)}'",'and')
+        fevlot=self.ids['VAX_LOT'].filter_expression()
+        if fevlot is not None:
+            filterset = filterset.filter(fevlot, 'and')
             rs_stats.extend(['VAX_LOT',len(filterset)])
 
         self._statusfield.text=f"{len(filterset)} records..."
@@ -256,10 +268,16 @@ class DataQueryViewScreen(Screen):
         self.checks['relab'].state = 'normal'
         self.ids['relabtxt'].text = ''
         self.ids['STATE'].text=''
-        self.ids['VAX_LOT'].text = ''
-        self.checks['VAX_LOT'].state = 'normal'
-        self.ids['NUMDAYS'].reset_form()
-        self.ids['HOSPDAYS'].reset_form()
+        #self.ids['VAX_LOT'].text = ''
+        #self.checks['VAX_LOT'].state = 'normal'
+        currapp=App.get_running_app()
+        if hasattr(currapp,'rangedfields'):
+            for fld in currapp.rangedfields.values():
+                fld.reset_form()
+
+        if hasattr(currapp,'regexfields'):
+            for fld in currapp.regexfields.values():
+                fld.reset_form()
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -414,7 +432,7 @@ class DataQueryViewScreen(Screen):
         #hbox2.add_widget(glayout)
         vbox.add_widget(glayout)
         # Spinners begin
-        glayout = GridLayout(cols=6, size_hint_x=1, size_hint_y=None, padding=5, height=60)
+        glayout = GridLayout(cols=6, size_hint_x=1, size_hint_y=None, padding=11, height=60)
         hbox2 = BoxLayout(orientation='horizontal', size_hint_x=1, size_hint_y=None, padding=5, height=60)
 
         # Sex
@@ -444,7 +462,7 @@ class DataQueryViewScreen(Screen):
         # Grid Layout 4
         vbox.add_widget(glayout)
         # Spinners continue
-        glayout = GridLayout(cols=6, size_hint_x=1, size_hint_y=None, padding=5, height=60)
+        glayout = GridLayout(cols=6, size_hint_x=1, size_hint_y=None, padding=11, height=60)
         glayout.bind(minimum_height=self.setter('height'))
         hbox2 = BoxLayout(orientation='horizontal', size_hint_x=1, size_hint_y=None, padding=5, height=60)
 
@@ -473,21 +491,29 @@ class DataQueryViewScreen(Screen):
 
         cbox = ToggleButton(size_hint_y=None, height=25, size_hint_x=None, width=40,
                             allow_no_selection=True, background_color=cboxcol)
-        self.checks['VAX_LOT']=cbox
-        self.ids['VAX_LOT']=TextInput(size_hint_y=None, height=50, foreground_color=tboxfg, background_color=tboxbg)
-        self.ids['STATE']=TextInput(size_hint_y=None, height=50, foreground_color=tboxfg, background_color=tboxbg)
 
-        hbox1=BoxLayout(orientation='horizontal', size_hint_y=None, height=60)
-        hbox1.add_widget(
-            ColoredLabel(rgba, size_hint_x=0.2, size_hint_y=None, height=50, text='Vax Lot:', color=textcolor))
-        hbox1.add_widget(self.checks['VAX_LOT'])
-        hbox1.add_widget(self.ids['VAX_LOT'])
-        hbox1.add_widget(
-            ColoredLabel(rgba, size_hint_x=0.2, size_hint_y=None, height=50,text='State:', color=textcolor))
+        self.checks['VAX_LOT']=cbox
+        #self.ids['VAX_LOT']=TextInput(size_hint_y=None, height=50, foreground_color=tboxfg, background_color=tboxbg)
+        self.ids['VAX_LOT']=RegexTextField('VAX_LOT', size_hint_x = 0.4)
+        currapp.regexfields['regexbatch']=self.ids['VAX_LOT']
+        #hbox1.add_widget(self.ids['regexbatch'])
+
+        vl=self.ids['VAX_LOT']
+
+        self.ids['STATE']=TextInput(size_hint_y=None, height=50, foreground_color=tboxfg,
+                                    background_color=tboxbg, size_hint_x=0.4)
+
+        hbox1=BoxLayout(orientation='horizontal', size_hint_y=None, height=60, padding=11)
+        hbox1.add_widget(ColoredLabel(rgba, size_hint_x=0.2, size_hint_y=None, height=50,
+                                      text='Vax Lot:', color=textcolor))
+
+        hbox1.add_widget(vl)
+        hbox1.add_widget(ColoredLabel(rgba, size_hint_x=0.2, size_hint_y=None, height=50,
+                                      text='State:', color=textcolor))
         hbox1.add_widget(self.ids['STATE'])
         vbox.add_widget(hbox1)
 
-        hbox1=BoxLayout(orientation='horizontal', size_hint_y=None, height=60)
+        hbox1=BoxLayout(orientation='horizontal', size_hint_y=None, height=60, padding=11)
         hbox1.add_widget(
             ColoredLabel(rgba, size_hint_x=0.25, size_hint_y=None, height=50, text='Days of onset:', color=textcolor))
 
@@ -503,6 +529,30 @@ class DataQueryViewScreen(Screen):
         self.ids['HOSPDAYS']=currapp.rangedfields['HOSPDAYS']
 
         vbox.add_widget(hbox1)
+
+        hbox1=BoxLayout(orientation='horizontal', size_hint_y=None, height=60, padding=11)
+        hbox1.add_widget(
+            ColoredLabel(rgba, size_hint_x=0.25, size_hint_y=None, height=50, text='Curremt Age:', color=textcolor))
+
+        currapp.rangedfields['CAGE_YR']=RangedNumericField('CAGE_YR', size_hint_x = 0.2)
+        hbox1.add_widget(currapp.rangedfields['CAGE_YR'])
+        self.ids['CAGE_YR']=currapp.rangedfields['CAGE_YR']
+
+        hbox1.add_widget(
+            ColoredLabel(rgba, size_hint_x=0.25, size_hint_y=None, height=50, text='Age at vaccination:', color=textcolor))
+
+        currapp.rangedfields['AGE_YRS']=RangedNumericField('AGE_YRS', size_hint_x = 0.2)
+        hbox1.add_widget(currapp.rangedfields['AGE_YRS'])
+        self.ids['AGE_YRS']=currapp.rangedfields['AGE_YRS']
+
+        vbox.add_widget(hbox1)
+
+        #hbox1=BoxLayout(orientation='horizontal', size_hint_y=None, height=60, padding=11)
+        #hbox1.add_widget(
+         #   ColoredLabel(rgba, size_hint_x=0.25, size_hint_y=None, height=55, text='Regex batch:', color=textcolor))
+
+
+        #vbox.add_widget(hbox1)
 
         statusfield=Label(size_hint=[1,None], height=40, text="Ready")
         self._statusfield=statusfield
