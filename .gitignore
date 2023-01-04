@@ -11,3 +11,4 @@ main.dist/
 main.build/
 generated/pkg_resources_hook.py
 vaerity.spec
+/heatmap.csv
