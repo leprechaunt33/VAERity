@@ -1,9 +1,10 @@
+import datetime
 import math
 import re
 import threading
 import time
-from collections import Counter
-
+from collections import Counter, OrderedDict
+import datetime as dt
 import inscriptis
 import klembord
 import matplotlib.pyplot as plt
@@ -26,6 +27,7 @@ from kivy.utils import get_color_from_hex
 
 from dataframegridview import ColoredButton, ColoredLabel
 from regextextfield import RegexTextField
+from rtfdocument import RtfDocument
 
 
 class DataQueryResultScreen(Screen):
@@ -33,8 +35,19 @@ class DataQueryResultScreen(Screen):
     screen_size = NumericProperty(1)
     _ds: pd.DataFrame = None
 
+    def stylemissing(self,value,prefix, prefix2):
+        return f"""
+<td style="color: {self.currapp._vc[f"{prefix}.textcolor"]}; background-color: {self.currapp._vc[f"{prefix}.background"]};">
+<data value="{self.formatmissing(value)}" style="color: {self.currapp._vc[f"{prefix2}.textcolor"]}; background-color: {self.currapp._vc[f"{prefix2}.background"]};">{self.formatmissing(value)}</data></td>
+"""
+
     def copy_to_clipboard(self,*args):
         r=self._ds.iloc[self.start_index]
+        cc=self.currapp._vc['eventheader.background']
+        fc=self.currapp._vc['eventheader.textcolor']
+        lbc = self.currapp._vc['label.textcolor']
+        lbb = self.currapp._vc['label.background']
+        wcc = self.currapp._vc['window.clearcolor']
         sdf=self.currapp.df['symptoms']
         syms=[]
         symrows=sdf[sdf.VAERS_ID == r.VAERS_ID].to_dict()
@@ -42,23 +55,39 @@ class DataQueryResultScreen(Screen):
             syms.extend([x for x in map(lambda s: s.as_py(),symrows[f"SYMPTOM{i}"]) if ((x is not None) and (len(x)>0))])
 
         evthtml=f"""
+<html>
 <head>
-    <style="text/css">
+    <style>
 .patientdata {{
-    font-weight: bold
-    background-color: {self.currapp._vc['patientdata.background']}
-    color: {self.currapp._vc['patientdata.textcolor']}
+    font-weight: bold;
+    background-color: {self.currapp._vc['patientdata.background']};
+    color: {self.currapp._vc['patientdata.textcolor']};S
 }}
 
+#patientdata th {{
+ background-color: {cc};
+ color: {fc};
+}}
+
+#patientdata td > data {{
+  background-color: {lbc};
+  color: {lbb};
+}}
+
+body {{
+  background-color: {wcc};
+  color: {lbc};
+}}
     </style>
 </head>
+<body>
 <table id="patienttable">
 <thead>
 <th colspan=4>
 <div id="patientdata"><header><h3>[VAERS: {r.VAERS_ID}]<br />
-PATIENT (<data class="patientdata, sex" value="{self.formatmissing(r.SEX)}">{self.formatmissing(r.SEX)}</data>,
-  <data class="patientdata, age" value="{self.formatmissing(r.CAGE_YR)}">{self.formatmissing(r.CAGE_YR)}</data>,
-  <data class="patientdata, state" value="{self.formatmissing(r.STATE)}">{self.formatmissing(r.STATE)}</data>)</h3></header>
+PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self.formatmissing(r.SEX)}</data>,
+  <data class="patientdata age" value="{self.formatmissing(r.CAGE_YR)}">{self.formatmissing(r.CAGE_YR)}</data>,
+  <data class="patientdata state" value="{self.formatmissing(r.STATE)}">{self.formatmissing(r.STATE)}</data>)</h3></header>
   <details><summary>{len(syms)} symptom(s)</summary><br>
   {", ".join(f'<data value="{s}">{s}</data>' for s in syms)}</details>
 </header></div>
@@ -66,19 +95,19 @@ PATIENT (<data class="patientdata, sex" value="{self.formatmissing(r.SEX)}">{sel
 </thead>
 <tr>
     <th>Onset Date</th>
-    <td><data value="{self.formatmissing(r.ONSET_DATE)}"><time>{self.formatmissing(r.ONSET_DATE)}</time></data></td>
+{self.stylemissing(r.ONSET_DATE,'patientdata','label')}
     <th>Vaccinated On</th>
-    <td><data value="{self.formatmissing(r.VAX_DATE)}"><time>{self.formatmissing(r.VAX_DATE)}</time></data></td>
+{self.stylemissing(r.VAX_DATE,'patientdata','label')}
 </tr><tr>
     <th>Days since vaccination</th>
-    <td><data value="{self.formatmissing(r.NUMDAYS)}">{self.formatmissing(r.NUMDAYS)}</data></td>
+{self.stylemissing(r.NUMDAYS,'patientdata','label')}
     <th>Life threatening?</th>
     <td><data value="{self.boolformat(r.L_THREAT)}">{self.boolformat(r.L_THREAT)}</data></td>
 </tr><tr>
     <th>Classification</th>
-    <td><data value="{" ".join(self.getRecordAttributes(r))}">{" ".join(self.getRecordAttributes(r))}</data></td>
+{self.stylemissing(" ".join(self.getRecordAttributes(r)),'patientdata','label')}
     <th>Hospital Stay</th>
-    <td><data value="{self.formatmissing(r.HOSPDAYS)}">{self.formatmissing(r.HOSPDAYS)} days, {self.boolformat(r.X_STAY, 'E','NE')}</data></td>
+    <td><data value="{self.formatmissing(r.HOSPDAYS)}">{self.formatmissing(r.HOSPDAYS)} days, {self.boolformat(r.X_STAY, 'E','NE', 'NE')}</data></td>
 </tr>
 </table>
 <table id="vaccinedata">
@@ -88,19 +117,19 @@ PATIENT (<data class="patientdata, sex" value="{self.formatmissing(r.SEX)}">{sel
 </thead>
 </tr><tr>
     <th>Vaccine Type</th>
-    <td><data value="{self.formatmissing(r.VAX_TYPE)}">{self.formatmissing(r.VAX_TYPE)}</data></td>
+{self.stylemissing(r.VAX_TYPE,'vaccinedata','label')}
     <th>Vaccine Manufacturer</th>
-    <td><data value="{self.formatmissing(r.VAX_MANU)}">{self.formatmissing(r.VAX_MANU)}</data></td>
+{self.stylemissing(r.VAX_MANU,'vaccinedata','label')}
 </tr><tr>
     <th>Dose Number</th>
-    <td><data value="{self.formatmissing(r.VAX_DOSE_SERIES)}">{self.formatmissing(r.VAX_DOSE_SERIES)}</data></td>
+{self.stylemissing(r.VAX_DOSE_SERIES,'vaccinedata','label')}
     <th>Lot Number</th>
-    <td><data value="{self.formatmissing(r.VAX_LOT)}">{self.formatmissing(r.VAX_LOT)}</data></td>
+{self.stylemissing(r.VAX_LOT,'vaccinedata','label')}
 </tr><tr>
     <th>Vax Site</th>
-    <td><data value="{self.formatmissing(r.VAX_SITE)}">{self.formatmissing(r.VAX_SITE)}</data></td>
+{self.stylemissing(r.VAX_SITE,'vaccinedata','label')}
     <th>Vaccine Route</th>
-    <td><data value="{self.formatmissing(r.VAX_ROUTE)}">{self.formatmissing(r.VAX_ROUTE)}</data></td>
+{self.stylemissing(r.VAX_ROUTE,'vaccinedata','label')}
 </tr><tr>
 </table>
 <table id='detailstable'>
@@ -124,8 +153,62 @@ PATIENT (<data class="patientdata, sex" value="{self.formatmissing(r.SEX)}">{sel
 <td><textarea id='symptomtext'>{self.formatmissing(r.CUR_ILL)}</textarea></td>
 </tr>
 </table>
+<body>
+</html>
         """
-        klembord.set_with_rich_text(inscriptis.get_text(evthtml), evthtml)
+
+        d=RtfDocument(font_table = [{'family': 'swiss', 'name': 'Calibri'}], color_table=[
+            wcc, lbc, lbb, cc, fc
+        ], page_size=[11*1440,8.5*1440])
+
+        d.add_style(0,fontnum=0,fontsize=20, fg=lbc, bg=wcc, raw=['\\box','\\cbpat3'])
+        d.add_raw('\\s0').italic(False).bold(True).add_text(f"[VAERS {r.VAERS_ID}]").br()
+        d.add_text(f"PATIENT ({self.formatmissing(r.SEX)}, {self.formatmissing(r.CAGE_YR)}, {self.formatmissing(r.STATE)}, {len(syms)} symptom(s)").br()
+        d.add_text(", ".join(syms)).add_raw(['\\par'])
+        solidborder=['single', 'single', 'single', 'single']
+        dotborder=['dotted','dotted','dotted','dotted']
+
+        # Row 1
+        ptwidths=[3950, 3950*2, 3950*3, 3950*4]
+        d.add_row_definition({'borders': [solidborder, dotborder, solidborder, dotborder],
+                              'widths': ptwidths
+                              })
+        d.single_paragraph_column('Onset Date',3,4)
+        d.single_paragraph_column(self.formatmissing(r.ONSET_DATE),0,1)
+        d.single_paragraph_column('Vaccinated On',3,4)
+        d.single_paragraph_column(self.formatmissing(r.VAX_DATE),0,1)
+        d.end_row()
+
+        # Row 2
+        d.add_row_definition({'borders': [solidborder, dotborder, solidborder, dotborder],
+                              'widths': ptwidths
+                              })
+        d.single_paragraph_column('Days since vaccination',3,4)
+        d.single_paragraph_column(self.formatmissing(r.NUMDAYS),0,1)
+        d.single_paragraph_column('Life threatening?',3,4)
+        d.single_paragraph_column(self.formatmissing(r.L_THREAT),0,1)
+        d.end_row()
+
+        # Row 3
+        d.add_row_definition({'borders': [solidborder, dotborder, solidborder, dotborder],
+                              'widths': ptwidths
+                              })
+        d.single_paragraph_column('Classification',3,4)
+        d.single_paragraph_column(" ".join(self.getRecordAttributes(r)),0,4)
+        d.single_paragraph_column('Hospital stay',3,4)
+        d.single_paragraph_column(f"{self.formatmissing(r.HOSPDAYS)} days, {self.boolformat(r.X_STAY, 'E','NE', 'NE')}",0,4)
+        d.end_row()
+
+        doctext=d.document()
+        f=open("syntax-check.rtf","w")
+        print(doctext,file=f)
+        f.close()
+        clippy=OrderedDict()
+        clippy['HTML Format']=evthtml
+        clippy['CF_TEXT']=inscriptis.get_text(evthtml)
+        clippy['Rich Text Format']=doctext.encode('utf-8')
+        klembord.set(clippy)
+
     def goback(self, *args):
         dq = self.manager.get_screen('dataqueryscreen')
         # Clear the form so hidden filters don't stay set
@@ -409,6 +492,7 @@ PATIENT (<data class="patientdata, sex" value="{self.formatmissing(r.SEX)}">{sel
 
         fig, (ax)=plt.subplots(3,3, figsize=(25,25), dpi=100)
         fig=plt.figure(figsize=(25,25), dpi=100)
+        figs=[fig]
         gs0 = fig.add_gridspec(3, 3)
 
         ax0 = fig.add_subplot(gs0[0, 0])
@@ -437,6 +521,13 @@ PATIENT (<data class="patientdata, sex" value="{self.formatmissing(r.SEX)}">{sel
         fig.suptitle(self.summarize_plot(), y=0.98, fontsize=14)
 
         statusupdate("MPL SETUP DONE",3)
+        if not 'osdate' in self._ds.columns.to_list():
+            self._ds['osdate']=pd.to_datetime(self._ds.RECVDATE, errors='coerce')
+            try:
+                self._ds['weekdate']=self._ds['osdate']-self._ds['osdate'].dt.dayofweek.map(dt.timedelta)
+                self._ds['monthdate'] = self._ds['osdate'].dt.to_period("M")
+            except Exception as ex:
+                print(ex)
 
         DIED=len(self._ds[self._ds.DIED == 'Y'])
         HOSPITAL=len(self._ds[self._ds.HOSPITAL == 'Y'])
@@ -510,7 +601,17 @@ PATIENT (<data class="patientdata, sex" value="{self.formatmissing(r.SEX)}">{sel
         ax2.set_xlabel("Number of incidents")
 
         ax3.set_xlabel("Age at vaccination")
-        self.showplot(plt.gcf())
+
+        fig2 = plt.figure(figsize=(25, 25), dpi=100)
+        gs2 = fig2.add_gridspec(2, 1)
+        ts0 = fig2.add_subplot(gs2[0])
+        ts1 = fig2.add_subplot(gs2[1])
+
+        gby=self._ds.value_counts(['weekdate','STATE'], dropna=False).reset_index(name='count')
+        pivot=gby.pivot_table(index='weekdate',columns=['STATE'], values='count', dropna=False)
+        sns.heatmap(pivot, ax=ts0)
+        figs.append(fig2)
+        self.showplot(figs)
 
     def statsscreen(self, *args):
         self.idlist=sorted(self._ds['VAERS_ID'].to_list())
