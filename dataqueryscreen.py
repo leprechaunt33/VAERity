@@ -564,6 +564,7 @@ class DataQueryViewScreen(Screen):
         sv=ScrollView(size_hint=(1, None), size=(Window.width, Window.height))
         sv.add_widget(vbox)
         self.add_widget(sv)
+        self._sv = sv
 
 # rgb(26, 32, 170) | HEX #1A20AA
 # rgb(86, 202, 184) | HEX #56CAB8
