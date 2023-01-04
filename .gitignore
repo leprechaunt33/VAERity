@@ -12,3 +12,5 @@ main.build/
 generated/pkg_resources_hook.py
 vaerity.spec
 /heatmap.csv
+syntax-check.rtf
+modules.txt
