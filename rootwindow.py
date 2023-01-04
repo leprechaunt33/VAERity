@@ -10,6 +10,7 @@ from kivy.config import Config
 from kivy.uix.image import Image
 from kivy.uix.settings import SettingsWithSidebar
 from kivy.core.window import Window
+from kivy.uix.widget import Widget
 from kivy.utils import get_color_from_hex
 import pyautogui
 import sys
@@ -25,6 +26,7 @@ import matplotlib.pyplot as plt
 from kivy.app import App
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.boxlayout import BoxLayout
+from kivy.core.window import Keyboard
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.progressbar import ProgressBar
@@ -184,8 +186,12 @@ class SaveDialog(FloatLayout):
     cancel = ObjectProperty(None)
 
 class RootWindow(App):
+    _keyboard: Keyboard = None
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.navkeys = ('up', 'down', 'left', 'right','pageup','pagedown')
+        self.loaded = False
         self.windowstatus = None
         self.progress = None
         self.df=dict()
@@ -208,22 +214,107 @@ class RootWindow(App):
 
         self.screensize=pyautogui.size()
         self._cse=VaeritySettings()
+        self._keyboard=Window.request_keyboard(self.keyboard_closed(), self.root)
+        Window.bind(on_keyboard=self.keyboard_event_loop)
+
+    def keyboard_closed(self, *args):
+        self._keyboard=None
+
+    def keyboard_event_loop(self, window, key, scancode, codepoint, modifier):
+        if self._keyboard is not None:
+            keyname=self._keyboard.keycode_to_string(key)
+        else:
+            keyname=''
+
+        if all(m in modifier for m in ['ctrl', 'alt']) and codepoint == 'm':
+            modlist=open('modules.txt','w')
+            print(json.dumps(list(sys.modules.keys())),file=modlist)
+            modlist.close()
+            print(json.dumps(list(sys.modules.keys())))
+        elif all(m in modifier for m in ['ctrl', 'alt']) and codepoint == 'n':
+            print("Matched modifiers and codepoint")
+            if self.manager.current == 'statscreen':
+                statscreen: DataQueryStatScreen=self.manager.get_screen('statscreen')
+                statscreen.current_figure=(statscreen.current_figure+1) % len(statscreen.figs)
+            else:
+                print(f"{self.manager.current}")
+        elif (len(modifier) == 0) and ( keyname in self.navkeys):
+            if self.manager.current == 'statscreen':
+                statscreen: DataQueryStatScreen = self.manager.get_screen('statscreen')
+                if keyname == 'right':
+                    statscreen._sv.scroll_x=min(statscreen._sv.scroll_x + 1/250,1)
+                elif keyname == 'left':
+                    statscreen._sv.scroll_x = max(statscreen._sv.scroll_x - 1 / 250, 0)
+                elif keyname == 'up':
+                    statscreen._sv.scroll_y = min(statscreen._sv.scroll_y + 1 / 250, 1)
+                elif keyname == 'down':
+                    statscreen._sv.scroll_y = max(statscreen._sv.scroll_y - 1 / 250, 0)
+                elif keyname == 'pageup':
+                    statscreen._sv.scroll_y = min(statscreen._sv.scroll_y + 1 / 25, 1)
+                elif keyname == 'pagedown':
+                    statscreen._sv.scroll_y = max(statscreen._sv.scroll_y - 1 / 25, 0)
+            elif self.manager.current == 'resultscreen':
+                resultscreen: DataQueryResultScreen=self.manager.get_screen(self.manager.current)
+                focus=self.current_focus()
+                if (focus is None) or (not isinstance(focus, TextInput)):
+                    if keyname == 'left':
+                        resultscreen.navLeft()
+                    elif keyname == 'right':
+                        resultscreen.navRight()
+            elif self.manager.current == 'dataqueryscreen':
+                dq: DataQueryViewScreen = self.manager.get_screen(self.manager.current)
+                focus=self.current_focus()
+                if (focus is None) or (not isinstance(focus, Widget)):
+                    if keyname == 'down':
+                        dq._sv.scroll_y = max(dq._sv.scroll_y - 1/100,0.)
+                    elif keyname == 'up':
+                        dq._sv.scroll_y = min(dq._sv.scroll_y + 1 / 100, 1.)
+                    elif keyname == 'pageup':
+                        dq._sv.scroll_y = min(dq._sv.scroll_y + 1 / 10, 1.)
+                    elif keyname == 'pagedown':
+                        dq._sv.scroll_y = max(dq._sv.scroll_y - 1/10,0.)
+
+                else:
+                    print(focus)
+        #else:
+            #print(f"{modifier}, {keyname}, {scancode}")
 
     def load_splash_screen(self,*args):
         resourcesdir=os.path.join(os.path.dirname(__file__),'resources')
         splashdir=os.path.join(resourcesdir,'splash')
-        imagelist=os.scandir(splashdir)
-        gifs=[file for file in imagelist if (file.name.endswith('.gif') | file.name.endswith('.jpg'))]
-        giffile=gifs[int(len(gifs)*random.random())]
-        self.splashanim=Image(source=giffile.path, size_hint_x=None, width=480)
-        self.splashtexture=self.splashanim.texture
-        self.splashheader=Image(source=os.path.join(resourcesdir,"vaerity_logo.png"), size_hint_x=None, width=480)
-        self.splashanim.anim_delay=1/10.0
-        self.splashanim.anim_loop=0
-        self.splashanim.size_hint_y=None
-        self.splashheader.size_hint_y = None
-        self.splashheader.height=self.splashanim.texture_size[1]
-        self.splashanim.height=self.splashanim.texture_size[1]
+        self.splashlist=[os.path.join(resourcesdir,"vaerity_logo.png")]
+        randos=[file.path for file in os.scandir(splashdir) if (file.name.endswith('.gif') | file.name.endswith('.jpg'))]
+        random.shuffle(randos)
+        self.splashlist.extend(randos)
+
+        self.splashindex=0
+        imgfile=self.splashlist[self.splashindex]
+        self.splashheader=Image(source=imgfile, size_hint_x=None, width=480)
+        self.splashtexture=self.splashheader.texture
+        self.splashheader.anim_delay=1/10.0
+        self.splashheader.anim_loop=0
+        self.splashheader.size_hint_y=None
+        self.splashheader.height=self.splashheader.texture_size[1]
+        self.splashheader.pos_hint={'center_x': 0.5, 'center_y': 0.5}
+
+    def splashcarousel(self, *args):
+        if len(self.splashlist) == 0:
+            return None
+
+        self.splashindex += 1
+        if self.splashindex >= len(self.splashlist):
+            self.splashindex=0
+
+        if os.path.exists(self.splashlist[self.splashindex]):
+            self.splashheader.source=self.splashlist[self.splashindex]
+            self.splashtexture=self.splashheader.texture
+            self.splashheader.anim_delay=1/10.0
+            self.splashheader.anim_loop=0
+            self.splashheader.size_hint_y=None
+            self.splashheader.height=self.splashheader.texture_size[1]
+
+        if not self.loaded:
+            Clock.schedule_interval(self.splashcarousel,5)
 
     @mainthread
     def update_status(self,text):
@@ -330,8 +421,7 @@ class RootWindow(App):
         Window.resizable=1
         for child in self.mslayout.walk():
             if isinstance(child,kivy.uix.image.Image):
-                child.parent.parent.remove_widget(child.parent)
-                # So as not to child.parent.parent.remove_widget twice on the same parent
+                child.parent.remove_widget(child)
                 break
 
         self.mslayout.add_widget(self.button_layout)
@@ -395,6 +485,7 @@ class RootWindow(App):
         self.update_progress(1000)
         self.update_status("Ready to run reports!")
         self.assign_buttons()
+        self.loaded=True
 
     def startdbimport(self,*args):
         threading.Thread(target=self.setupdataframes).start()
@@ -406,7 +497,14 @@ class RootWindow(App):
         self._vc=dict(self.config.items('style'))
         self._vr = dict(self.config.items('main'))
 
+        # All Window manipulation is done before loading images/layouts
+        # so that sizing works properly
         Window.clearcolor=self._vc['window.clearcolor']
+        Window.size = (600,600)
+        Window.borderless=1
+        Window.top=0
+        Window.left=(self.screensize[0]-600)//2
+
         mainscreen=Screen(name='mainscreen')
         layout = GridLayout(rows=7, cols=1)
         self.progress = ProgressBar(max=1000)
@@ -415,18 +513,10 @@ class RootWindow(App):
         self.windowstatus = Label(text='Ready.', font_size='10sp', size_hint=(1, None), height=120)
         box1= BoxLayout(orientation='vertical')
         self.load_splash_screen()
-        box2=BoxLayout(orientation='horizontal', size_hint_y=None, height=self.splashanim.texture_size[1]+10)
-        box2.add_widget(self.splashheader)
-        box2.add_widget(self.splashanim)
-        box1.add_widget(box2)
+        box1.add_widget(self.splashheader)
         box1.add_widget(self.progress)
         box1.add_widget(self.windowstatus)
         layout.add_widget(box1)
-
-        Window.size = (960,600)
-        Window.borderless=1
-        Window.top=0
-        Window.left=(self.screensize[0]-960)//2
 
         self.button_layout=BoxLayout(orientation='vertical', size_hint_y=None, height=250)
         if 'button.textcolor' in self._vc:
@@ -475,6 +565,7 @@ class RootWindow(App):
         self.mslayout=layout
         if os.path.exists(self._vr['vaersfolder']):
             Clock.schedule_once(self.startdbimport, 2)
+            Clock.schedule_interval(self.splashcarousel, 5)
         else:
             Clock.schedule_once(self.open_settings, 2)
         return sm
@@ -498,3 +589,15 @@ class RootWindow(App):
         await self.async_run()
         print("App completed successfully")
 
+    def current_focus(self):
+        s: Screen=self.manager.get_screen(self.manager.current)
+        if s is None:
+            return None
+
+        for widget in s.walk():
+            if not hasattr(widget, 'focus'):
+                continue
+            if widget.focus:
+                return widget
+
+        return None
