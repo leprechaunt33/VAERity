@@ -3,17 +3,16 @@ import os
 import kivy.garden.matplotlib
 from kivy.app import App
 from kivy.core.window import Window
-from kivy.factory import Factory
 from kivy.lang import Builder
-from kivy.properties import ObjectProperty
+from kivy.properties import ObjectProperty, NumericProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.floatlayout import FloatLayout
-from kivy.uix.gridlayout import GridLayout
 from kivy.uix.label import Label
 from kivy.uix.popup import Popup
 from kivy.uix.screenmanager import Screen
 from kivy.uix.scrollview import ScrollView
 from kivy.utils import get_color_from_hex
+from matplotlib.figure import Figure
 
 from dataframegridview import ColoredButton
 from kivy.garden.matplotlib import FigureCanvasKivyAgg
@@ -77,20 +76,43 @@ class SaveDialog(FloatLayout):
 
 class DataQueryStatScreen(Screen):
     currapp = None
+    current_figure = NumericProperty(0)
 
     def goback(self, *args):
         self.currapp.manager.current = 'resultscreen'
 
-    def set_figure(self,fig):
+    def clear_scrollview(self):
         for widget in self._sv.walk():
             if isinstance(widget,kivy.garden.matplotlib.FigureCanvasKivyAgg):
                 widget.parent.remove_widget(widget)
 
-        ka=FigureCanvasKivyAgg(fig)
-        ka.size_hint=(None,None)
-        ka.width=2500
-        ka.height=2500
-        #ka.pos_hint=(1,None)
+
+    def set_figure(self,fig):
+        self.clear_scrollview()
+
+        if isinstance(fig,list):
+            ka = FigureCanvasKivyAgg(fig[0])
+            ka.size_hint = (None, None)
+            ka.width = int(fig[self.current_figure].get_dpi() * fig[self.current_figure].get_figwidth())
+            ka.height = int(fig[self.current_figure].get_dpi() * fig[self.current_figure].get_figwidth())
+            self._sv.add_widget(ka)
+            self.figs=fig
+        else:
+            ka=FigureCanvasKivyAgg(fig)
+            ka.size_hint=(None,None)
+            ka.width=int(fig.get_dpi()* fig.get_figwidth())
+            ka.height=int(fig.get_dpi()* fig.get_figwidth())
+            self._sv.add_widget(ka)
+            self.figs=[fig]
+
+    def on_current_figure(self, instance, value):
+        print(f"Entered on_current_figure, value is {value}")
+
+        self.clear_scrollview()
+        ka = FigureCanvasKivyAgg(self.figs[value])
+        ka.size_hint = (None, None)
+        ka.width = int(self.figs[value].get_dpi() * self.figs[value].get_figwidth())
+        ka.height = int(self.figs[value].get_dpi() * self.figs[value].get_figwidth())
         self._sv.add_widget(ka)
 
     def dismiss_popup(self):
@@ -124,6 +146,7 @@ class DataQueryStatScreen(Screen):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.figs = None
         self.currapp=App.get_running_app()
 
         Builder.load_string(_builderstring)
