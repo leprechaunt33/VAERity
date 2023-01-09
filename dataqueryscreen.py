@@ -19,6 +19,7 @@ import vaex as vx
 from kivy.uix.spinner import Spinner
 import traceback
 from dataqueryresultscreen import DataQueryResultScreen
+from fluxcapacitor import FluxCapacitor
 from rangednumericfield import RangedNumericField
 from regextextfield import RegexTextField
 
@@ -49,6 +50,13 @@ class DataQueryViewScreen(Screen):
         # by transforming previously logical ors into setwise ors, ditto for ands.  For this to work,
         # the order of operations needs to be changed for the emergency fields to respect operator
         # symmetry in the operator chaining.
+
+        fe=self.george.filter_expression()
+        if fe is not None:
+            filterset=filterset.filter(fe)
+            rs_stats.extend(['FLUX',len(filterset)])
+
+
         if self.checks['emergency0'].state == 'down':
             filterset=filterset.filter("ER_VISIT == 'Y'","or")
             rs_stats.extend(['ER_VISIT',len(filterset)])
@@ -85,7 +93,7 @@ class DataQueryViewScreen(Screen):
         self._statusfield.text=f"{len(filterset)} records..."
 
         if self.checks['emergency1'].state == 'down':
-            filterset=filterset.filter("ER_VISIT != 'Y'", 'amd').filter("ER_ED_VISIT != 'Y'",'amd')
+            filterset=filterset.filter("ER_VISIT != 'Y'", 'and').filter("ER_ED_VISIT != 'Y'",'and')
             rs_stats.extend(['EMERGENCY1',len(filterset)])
 
         self._statusfield.text=f"{len(filterset)} records..."
@@ -300,6 +308,38 @@ class DataQueryViewScreen(Screen):
         btn1.bind(on_press=self.goback)
         hbox1.add_widget(btn1)
         hbox1.add_widget(Label(size_hint_y=None, height=50))
+        vbox.add_widget(hbox1)
+
+        hbox1 = BoxLayout(orientation='horizontal', size_hint=[1, None], height=250)
+        self.marty = FluxCapacitor('DIED','fluxdeath',['Yes', 'No', "Don't Care"],
+                              ["{name} == 'Y'", "~str_contains({name},'^Y$')", None], [], fluxtext='Deaths')
+
+        self.jennifer = FluxCapacitor('HOSPITAL','fluxhosp',['Yes', 'No', "Don't Care"],
+                              ["{name} == 'Y'", "~str_contains({name},'^Y$')", None], [], fluxtext='Hospitalisations')
+
+        self.doc = FluxCapacitor('DISABLE','fluxdisable',['Yes', 'No', "Don't Care"],
+                              ["{name} == 'Y'", "~str_contains({name},'^Y$')", None], [], fluxtext='Disabled')
+
+        self.needles = FluxCapacitor('L_THREAT','fluxthreat',['Yes', 'No', "Don't Care"],
+                              ["{name} == 'Y'", "~str_contains({name},'^Y$')", None], [], fluxtext='Life Threatening')
+
+        self.strickland = FluxCapacitor('OFC_VISIT','fluxofc',['Yes', 'No', "Don't Care"],
+                              ["{name} == 'Y'", "~str_contains({name},'^Y$')", None], [], fluxtext='Office/Clinic visit')
+
+        self.george = FluxCapacitor('BIRTH_DEFECT','fluxbirth',['Yes', 'No', "Don't Care"],
+                              ["{name} == 'Y'", "~str_contains({name},'^Y$')", None], [], fluxtext='Birth Defect?')
+
+        hbox1.add_widget(self.marty)
+        hbox1.add_widget(self.jennifer)
+        hbox1.add_widget(self.doc)
+        hbox1.add_widget(self.needles)
+        hbox1.add_widget(self.strickland)
+        hbox1.add_widget(self.george)
+        self.jennifer.notify_downstream(self.marty)
+        self.doc.notify_downstream(self.jennifer)
+        self.needles.notify_downstream(self.doc)
+        self.strickland.notify_downstream(self.needles)
+        self.george.notify_downstream(self.strickland)
         vbox.add_widget(hbox1)
 
         # Booleans - deaths, hospitalisations, disabled and emergency room visits
