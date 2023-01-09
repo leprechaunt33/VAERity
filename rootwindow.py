@@ -19,7 +19,6 @@ from configsettings import VaeritySettings
 from dataquerystatscreen import DataQueryStatScreen
 
 Config.set('input', 'mouse', 'mouse,multitouch_on_demand')
-#Config.set('kivy', 'log_level', 'error')
 import os
 import threading
 import matplotlib.pyplot as plt
@@ -210,7 +209,7 @@ class RootWindow(App):
             spec.loader.exec_module(module)
         else:
             print(f"can't find the pyautogui module!")
-            return None
+            return
 
         self.screensize=pyautogui.size()
         self._cse=VaeritySettings()
@@ -441,6 +440,9 @@ class RootWindow(App):
         if hasattr(self,'regexfields'):
             for fld in self.regexfields.values():
                 fld.df=self.df['data']
+
+        dq=self.manager.get_screen('dataqueryscreen')
+        dq.marty.df=self.df['data']
 
 
     def setupdataframes(self,*args):
