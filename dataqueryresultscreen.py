@@ -26,6 +26,7 @@ from kivy.uix.textinput import TextInput
 from kivy.utils import get_color_from_hex
 
 from dataframegridview import ColoredButton, ColoredLabel
+from modulardataset import ModularDataset
 from regextextfield import RegexTextField
 from rtfdocument import RtfDocument
 
@@ -34,6 +35,82 @@ class DataQueryResultScreen(Screen):
     start_index = NumericProperty(0)
     screen_size = NumericProperty(1)
     _ds: pd.DataFrame = None
+    recordFormat = [{'type': 'hbox', 'content': [
+        {'label': 'PATIENT', 'stylekeys': ['patiendata.background', 'patientdata.textcolor'],
+         'ref_func': 'narrow_state', 'ref_resolver': 'self', 'formula': 'patient_header',
+         'labelonly': True, 'resolver': 'self', 'id': 'patient', 'kwargs': {'bold': True}}]},
+                    {'tablename': 'patientdata', 'cols': 2, 'rows': 3,
+                     'stylekeys': ['patientdata.background', 'patientdata.textcolor',
+                                   'eventheader.background', 'eventheader.textcolor',
+                                   None, None], 'type': 'table', 'splitter': 'bottom',
+                     'content': [
+                         {'label': 'Onset Date', 'formula': 'fm:ONSET_DATE', 'id': 'onset',
+                          'kwargs': {'size_hint_y': None, 'height': 40}},
+                         {'label': 'Vaccinated On', 'formula': 'fm:VAX_DATE', 'id': 'vaxdate',
+                          'kwargs': {'size_hint_y': None, 'height': 40}},
+                         {'label': 'Days since vaccination', 'formula': 'fm:NUMDAYS', 'id': 'numdays',
+                          'kwargs': {'size_hint_y': None, 'height': 40}},
+                         {'label': 'Life threatening?', 'formula': 'bf:L_THREAT', 'id': 'lthreat',
+                          'kwargs': {'size_hint_y': None, 'height': 40}},
+                         {'label': 'Classification', 'formula': 'recAttr',
+                          'resolver': 'self', 'id': 'classification',
+                          'kwargs': {'size_hint_y': None, 'height': 40}},
+                         {'label': 'Hospital stay', 'formula': 'hospital_stay',
+                          'resolver': 'self', 'id': 'x_stay',
+                          'kwargs': {'size_hint_y': None, 'height': 40}}
+                     ]
+                     },
+                    {'tablename': 'vaccinedata', 'cols': 2, 'rows': 3,
+                     'stylekeys': ['vaccinedata.background', 'vaccinedata.textcolor',
+                                   'vaccineheader.background', 'vaccineheader.textcolor',
+                                   None, None], 'type': 'table', 'splitter': 'bottom',
+                     'content': [
+                         {'label': 'Vaccine Type', 'formula': 'print_vaxtype', 'ref': 'vaxtype',
+                          'ref_func': 'narrow_vaxtype', 'ref_resolver': 'self', 'id': 'vaxtype',
+                          'resolver': 'self',
+                          'kwargs': {'size_hint_y': None, 'height': 40}},
+                         {'label': 'Vaccine Manufacturer', 'formula': 'fm:VAX_MANU', 'id': 'vaxmanu',
+                          'kwargs': {'size_hint_y': None, 'height': 40}},
+                         {'label': 'Dose Number', 'formula': 'fm:VAX_DOSE_SERIES', 'id': 'vaxdose',
+                          'kwargs': {'size_hint_y': None, 'height': 40}},
+                         {'label': 'Lot Number', 'formula': 'print_vaxlot', 'ref': 'vaxlot',
+                          'ref_func': 'query_batch', 'ref_resolver': 'self', 'id': 'vaxlot',
+                          'resolver': 'self',
+                          'kwargs': {'size_hint_y': None, 'height': 40}
+                          },
+                         {'label': 'Vaccine Site', 'formula': 'fm:VAX_SITE', 'id': 'vaxsite',
+                          'kwargs': {'size_hint_y': None, 'height': 40}},
+                         {'label': 'Vaccine Route', 'formula': 'fm:VAX_ROUTE', 'id': 'vaxroute',
+                          'kwargs': {'size_hint_y': None, 'height': 40}}
+                     ]
+                     },
+                    {'type': 'tabgroup', 'splitter': None, 'content': [
+                        {'header': 'Symptom Text', 'content': [
+                            {'textinput': True, 'formula': 'fm:SYMPTOM_TEXT', 'id': 'symptomtext'}
+                        ]
+                         },
+                        {'header': 'Lab Data', 'content': [
+                            {'textinput': True, 'formula': 'fm:LAB_DATA', 'id': 'labdata'}
+                        ]
+                         },
+                        {'header': 'Medications', 'content': [
+                            {'textinput': True, 'formula': 'fm:OTHER_MEDS', 'id': 'medications'}
+                        ]
+                         },
+                        {'header': 'Allergies', 'content': [
+                            {'textinput': True, 'formula': 'fm:ALLERGIES', 'id': 'allergies'}
+                        ]
+                         },
+                        {'header': 'History', 'content': [
+                            {'textinput': True, 'formula': 'fm:HISTORY', 'id': 'history'}
+                        ]
+                         },
+                        {'header': 'Current', 'content': [
+                            {'textinput': True, 'formula': 'fm:CUR_ILL', 'id': 'current'}
+                        ]
+                         }
+                    ]}
+                    ]
 
     def stylemissing(self,value,prefix, prefix2):
         return f"""
@@ -161,7 +238,7 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
             wcc, lbc, lbb, cc, fc
         ], page_size=[11*1440,8.5*1440])
 
-        d.add_style(0,fontnum=0,fontsize=20, fg=lbc, bg=wcc, raw=['\\box','\\cbpat3'])
+        d.add_style(0,fontnum=0,fontsize=20, fg=lbc, bg=wcc, raw=['\\box','\\cbpat3'], stylename='ProgramColors')
         d.add_raw('\\s0').italic(False).bold(True).add_text(f"[VAERS {r.VAERS_ID}]").br()
         d.add_text(f"PATIENT ({self.formatmissing(r.SEX)}, {self.formatmissing(r.CAGE_YR)}, {self.formatmissing(r.STATE)}, {len(syms)} symptom(s)").br()
         d.add_text(", ".join(syms)).add_raw(['\\par'])
@@ -292,40 +369,59 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
             print("Scheduling...")
             Clock.schedule_once(dq.execute_query)
 
-    def update_screen(self):
-        if self._ds is None:
-            return None
+    def hospital_stay(self,r, f, caller):
+        return f"{self.formatmissing(r.HOSPDAYS)} days, {self.boolformat(r.X_STAY, 'E', 'NE', 'NE')}"
 
-        row=self._ds.iloc[self.start_index]
-        self.ids['vaxdate'].text=self.formatmissing(row.VAX_DATE)
-        self.ids['onset'].text=self.formatmissing(row.ONSET_DATE)
-        self.ids['numdays'].text=self.formatmissing(row.NUMDAYS)
-        self.ids['classification'].text=" ".join(self.getRecordAttributes(row))
-        self.ids['lthreat'].text=self.boolformat(row.L_THREAT)
-        self.ids['x_stay'].text=f"{self.formatmissing(row.HOSPDAYS)} days, {self.boolformat(row.X_STAY, 'E','NE','NE')}"
-        self.ids['vaxtype'].text= f"[ref=vaxtype][color=#6666FF][u]{self.formatmissing(row.VAX_TYPE)}[/u][/color][/ref]"
-        self.ids['vaxmanu'].text = self.formatmissing(row.VAX_MANU)
-        self.ids['vaxroute'].text = self.formatmissing(row.VAX_ROUTE)
-        self.ids['vaxdose'].text = self.formatmissing(row.VAX_DOSE_SERIES)
-        self.ids['vaxlot'].text = f"[ref=batch][color=#6666FF][u]{self.formatmissing(row.VAX_LOT)}[/u][/color][/ref]"
-        self.ids['vaxsite'].text = self.formatmissing(row.VAX_SITE)
-        self.ids['labdata'].text = self.formatmissing(row.LAB_DATA)
-        self.ids['symptomtext'].text = self.formatmissing(row.SYMPTOM_TEXT)
-        self.ids['allergies'].text = self.formatmissing(row.ALLERGIES)
-        self.ids['medications'].text = self.formatmissing(row.OTHER_MEDS)
-        self.ids['history'].text = self.formatmissing(row.HISTORY)
-        self.ids['current'].text = self.formatmissing(row.CUR_ILL)
-        self._navIndex.text=str(self.start_index)
-        self._rh.text=self.record_header()
+    def recAttr(self, row, f, caller):
+        return " ".join(self.getRecordAttributes(row))
+
+    def patient_header(self, row, f, caller):
         sdf=self.currapp.df['symptoms']
         syms=[]
         symrows=sdf[sdf.VAERS_ID == row.VAERS_ID].to_dict()
         for i in range(1, 6):
             syms.extend([x for x in map(lambda s: s.as_py(),symrows[f"SYMPTOM{i}"]) if ((x is not None) and (len(x)>0))])
 
-        self.ids['patient'].text=f"PATIENT ({self.formatmissing(row.SEX)}, {self.age(row)}, [color=#2222FF][ref=state]{self.formatmissing(row.STATE)}[/ref][/color]), {len(syms)} symptom(s)\n{', '.join(syms)}\n"
-        self.ids['patient'].text_size=(self.currapp.root.width, 150)
-        self.ids['patient'].valign='center'
+        return f"PATIENT ({self.formatmissing(row.SEX)}, {self.age(row)}, [color=#2222FF][ref=state]{self.formatmissing(row.STATE)}[/ref][/color]), {len(syms)} symptom(s)\n{', '.join(syms)}\n"
+        caller.ids['patient'].text_size=(self.currapp.root.width, 150)
+        caller.ids['patient'].valign='center'
+
+    def print_vaxtype(self, r, f, caller):
+        return f"[ref=vaxtype][color=#6666FF][u]{caller.formatmissing(r.VAX_TYPE)}[/u][/color][/ref]"
+
+    def print_vaxlot(self, r, f, caller):
+        return f"[ref=batch][color=#6666FF][u]{caller.formatmissing(r.VAX_LOT)}[/u][/color][/ref]"
+
+    def update_screen(self):
+        if self._ds is None:
+            return None
+
+        row=self._ds.iloc[self.start_index]
+
+        for id in self.md.ids.keys():
+            self.md.ids[id].text=self.md.formula(id, row, self)
+
+        #self.ids['vaxdate'].text=self.formatmissing(row.VAX_DATE)
+        #self.ids['vaxdate'].text=self.md.formula('vaxdate', row, self)
+        #self.ids['onset'].text=self.formatmissing(row.ONSET_DATE)
+        #self.ids['numdays'].text=self.formatmissing(row.NUMDAYS)
+        #self.ids['classification'].text=self.md.formula('classification', row, self)
+        #self.ids['lthreat'].text=self.boolformat(row.L_THREAT)
+        #self.ids['x_stay'].text=self.md.formula('x_stay', row, self)
+        #self.ids['vaxtype'].text= f"[ref=vaxtype][color=#6666FF][u]{self.formatmissing(row.VAX_TYPE)}[/u][/color][/ref]"
+        #self.ids['vaxmanu'].text = self.formatmissing(row.VAX_MANU)
+        #self.ids['vaxroute'].text = self.formatmissing(row.VAX_ROUTE)
+        #self.ids['vaxdose'].text = self.formatmissing(row.VAX_DOSE_SERIES)
+        #self.ids['vaxlot'].text = f"[ref=batch][color=#6666FF][u]{self.formatmissing(row.VAX_LOT)}[/u][/color][/ref]"
+        #self.ids['vaxsite'].text = self.formatmissing(row.VAX_SITE)
+        #self.ids['labdata'].text = self.formatmissing(row.LAB_DATA)
+        #self.ids['symptomtext'].text = self.formatmissing(row.SYMPTOM_TEXT)
+        #self.ids['allergies'].text = self.formatmissing(row.ALLERGIES)
+        #self.ids['medications'].text = self.formatmissing(row.OTHER_MEDS)
+        #self.ids['history'].text = self.formatmissing(row.HISTORY)
+        #self.ids['current'].text = self.formatmissing(row.CUR_ILL)
+        self._navIndex.text=str(self.start_index)
+        self._rh.text=self.record_header()
 
     def set_ds(self,ds):
         self._ds=ds
@@ -682,6 +778,13 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
     def build_record_panel(self):
         vbox1=BoxLayout(orientation='vertical')
         hbox1=BoxLayout(orientation='horizontal', padding=5)
+
+        self.md=ModularDataset(self,self.recordFormat)
+        for content in self.md.content:
+            vbox1.add_widget(content)
+
+        return vbox1
+
         bglabel=get_color_from_hex(self.currapp._vc['patientdata.background'])
         pdfg=get_color_from_hex(self.currapp._vc['patientdata.textcolor'])
         ehbg=get_color_from_hex(self.currapp._vc['eventheader.background'])
