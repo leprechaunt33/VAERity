@@ -1,5 +1,4 @@
 import math
-
 from kivy.app import App
 from kivy.graphics import Color, Rectangle
 from kivy.properties import ObjectProperty, BooleanProperty, NumericProperty, StringProperty
