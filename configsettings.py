@@ -164,6 +164,20 @@ class VaeritySettings:
                 'desc': 'Background color of the raw data grid viewer',
                 'type': 'color',
                 'section': 'style'
+            },
+            {
+                'key': 'fluxlabel.background',
+                'title': 'Flux Capacitor: Label background"',
+                'desc': 'Background color for labels on a flux capacitor',
+                'type': 'color',
+                'section': 'style'
+            },
+            {
+                'key': 'fluxlabel.textcolor',
+                'title': 'Flux Capacitor: Label text"',
+                'desc': 'Text color for labels on a flux capacitor',
+                'type': 'color',
+                'section': 'style'
             }
         ])
     ]
@@ -180,7 +194,8 @@ class VaeritySettings:
                                   'patientdata.background': '#111133', 'patientdata.textcolor': '#FFFFFF',
                                   'vaccinedata.background': '#111133', 'vaccinedata.textcolor': '#FFFFFF',
                                   'vaccineheader.background': '#111133', 'vaccineheader.textcolor': '#FFFFFF',
-                                  'gridview.background': '#092E5B', 'gridview.textcolor': '#FFFFFF'
+                                  'gridview.background': '#092E5B', 'gridview.textcolor': '#FFFFFF',
+                                  'fluxlabel.background': '#3C79F5', 'fluxlabel.textcolor': '#2DCDDF'
                                   }),
                        ('main', {
                            'vaersfolder': 'D:/AllVAERSDataCSVS'
