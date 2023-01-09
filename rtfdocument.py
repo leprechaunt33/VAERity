@@ -55,7 +55,17 @@ class RtfDocument:
         self.docdata.extend(['\\intbl\n'])
         return self
 
-    def single_paragraph_column(self, text, bg=None, fg=None):
+    def extend_style(self, styleidx):
+        s = self.style_sheet[styleidx]
+        # Include the style definition \sN and the corresponding formatting
+        # commands but not the style name.  This allows parsers that do not
+        # stylesheets to interpret the document correctly.
+        self.docdata.extend(s[0:len(s) - 1])
+
+    def single_paragraph_column(self, text, bg=None, fg=None, style=None):
+        if style is not None:
+            self.extend_style(style)
+
         if bg is not None:
             self.set_background(bg)
 
@@ -68,7 +78,7 @@ class RtfDocument:
     def end_row(self):
         self.docdata.append('\\row\n')
 
-    def add_style(self,styleidx,fontnum,fontsize,fg,bg,raw):
+    def add_style(self,styleidx,fontnum,fontsize,fg,bg,raw,stylename):
         if styleidx is None:
             styleidx = len(self.style_sheet)
 
@@ -104,6 +114,11 @@ class RtfDocument:
             style.append(f'\\fs{fontsize}')
 
         self.style_sheet.append(style)
+
+        if stylename is None:
+            stylename=f"style{styleidx}"
+
+        self.style_sheet.append(stylename)
 
     def set_color(self,n):
         eol=self.eol()
