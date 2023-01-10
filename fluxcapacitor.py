@@ -1,6 +1,7 @@
 import math
 import traceback
 
+from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.label import Label
@@ -12,12 +13,12 @@ from kivy.uix.relativelayout import RelativeLayout
 from kivy.uix.togglebutton import ToggleButton
 from kivy.utils import get_color_from_hex
 
-from dataframegridview import ColoredLabel
+from dataframegridview import ColoredLabel, ColoredButton
 
 
 class FluxCapacitor(RelativeLayout):
-    backInTime: ObjectProperty = ObjectProperty(None)
-    backToTheFuture: ObjectProperty = ObjectProperty(None)
+    backInTime: ObjectProperty = ObjectProperty(None, allownone=True)
+    backToTheFuture: ObjectProperty = ObjectProperty(None, allownone=True)
     plutonium: ColoredLabel = None
     maddog: Label = None
     density: Label = None
@@ -29,7 +30,7 @@ class FluxCapacitor(RelativeLayout):
     upper_wire_angle = 50
     font_size = 11
     chkindex = None
-
+    boolop = StringProperty()
 
     def set_calvin(self, fgcolors, bgcolors):
         self.calvinklein = Label(text=self.fieldlabels[2], color=fgcolors[2], font_size=10,
@@ -177,13 +178,42 @@ class FluxCapacitor(RelativeLayout):
         with self.density.canvas.after:
             PopMatrix()
 
+    def toggleop(self, *args):
+        self.df.drop_filter(inplace=True)
+        print(f'At the toggle point boolop is {self.boolop}')
+        if self.boolop == 'and':
+            self.boolop='or'
+        else:
+            self.boolop='and'
+
+        print(f"boolop now {self.boolop}")
+        if self.boolop == 'and':
+            markup = "([color=#5BC0F8][u][ref=boolopchange]A[/ref][/u][/color)"
+        else:
+            markup = "([color=#5BC0F8][u][ref=boolopchange]O[/ref][/u][/color]"
+
+        self.fluxheader.text=f"{self.fluxtext}   {markup}"
+        self.fluxheader.markup=True
+        self.fluxheader.texture_update()
+        Clock.schedule_once(self.on_state)
+
+    def on_boolop(self, instance, value):
+        self.on_state(instance, value)
+        return True
+
     def set_flux_header(self, fgcolors, bgcolors):
-        self.fluxheader = Label(text=self.fluxtext, color=fgcolors[0], font_size=self.font_size,
-                                size_hint=(None,None), bold=True)
+        if self.boolop == 'and':
+            markup="([color=#5BC0F8][u][ref=boolopchange]A[/ref][/u][/color])"
+        else:
+            markup = "([color=#5BC0F8][u][ref=boolopchange]O[/ref][/u][/color])"
+
+        self.fluxheader = Label(text=f"{self.fluxtext}   {markup}", color=fgcolors[0], font_size=self.font_size,
+                                size_hint=(None,None), bold=True, markup=True)
         self.fluxheader.texture_update()
         self.fluxheader.pos=(0,self.radius*2-(self.fluxheader.texture_size[1]+5))
         self.fluxheader.height=self.fluxheader.texture_size[1]+5
         self.fluxheader.width=2*self.radius
+        self.fluxheader.bind(on_ref_press = self.toggleop)
 
         with self.fluxheader.canvas.before:
             Color(*bgcolors[0])
@@ -193,6 +223,151 @@ class FluxCapacitor(RelativeLayout):
         self.checks[0].pos = (self.maddog.pos[0] - 15, self.maddog.pos[1] - 25)
         self.checks[1].pos = (self.density.pos[0] + 15, self.density.pos[1] - 25)
         self.checks[2].pos = (self.radius - 8, self.calvinklein.pos[1] + 15)
+
+    def set_buttons(self):
+        btn1=ColoredButton(get_color_from_hex(self.currapp._vc['button.background']), text=" < ",
+                           color=get_color_from_hex(self.currapp._vc['button.textcolor']),
+                           size_hint=(None,None), bold=True
+                           )
+        btn1.texture_update()
+        btn1.height=btn1.texture_size[1]+5
+        btn1.width=btn1.texture_size[0]
+        btn1.pos=(5, self.radius-btn1.height/2)
+        self.navLeft=btn1
+        btn2=ColoredButton(get_color_from_hex(self.currapp._vc['button.background']), text=" > ",
+                           color=get_color_from_hex(self.currapp._vc['button.textcolor']),
+                           size_hint=(None,None), bold=True
+                           )
+        btn2.texture_update()
+        btn2.height=btn2.texture_size[1]+5
+        btn2.width=btn2.texture_size[0]
+        btn2.pos=(2*self.radius-btn2.width, self.radius-btn2.height/2)
+        self.navright=btn2
+
+        self.navLeft.bind(on_release=self.moveFluxLeft)
+        self.navright.bind(on_release=self.moveFluxRight)
+
+    def fluxOrder(self):
+        if self.backInTime is not None:
+            return self.backInTime.fluxOrder()+1
+        else:
+            return 0
+
+    def fluxFirst(self):
+        first=self
+        while first.backInTime is not None:
+            first=first.backInTime
+
+        return first
+
+    def fluxPrev(self):
+        return self.backInTime
+
+    def fluxNext(self):
+        return self.backToTheFuture
+
+    def fluxLast(self):
+        last=self
+
+        while last.backToTheFuture is not None:
+            last=last.backToTheFuture
+
+        return last
+
+    def moveFluxLeft(self, *args):
+        parent=self.parent
+        fluxord=self.fluxOrder()
+        if fluxord == 0:
+            newDownstream=self.fluxLast()
+            # Kill the link to the second flux capacitor in the chain
+            newHead=self.backToTheFuture
+            if newHead is None:
+                # Flux order zero with null afterwards means we are the only
+                # flux in the list.  There is nothing to do.
+                return
+
+            # Disconnect from 2nd flux
+            newHead.backInTime = None
+            self.backToTheFuture = None
+            self.backInTime = None
+            # Notify will set btff and BIT on self
+            self.notify_downstream(newDownstream)
+        else:
+            prev=self.backInTime
+            if prev.backInTime is None:
+                oldnext=self.backToTheFuture
+                # If backInTime is not set for the prior Flux, we are moving
+                # to the head of the list.  Disconnect from oldnext if any
+                self.backToTheFuture=None
+                self.backInTime=None
+                # If oldnext is not None, this fixes the tree.  If it is, this
+                # correctly sets prev as last of new list
+                prev.backToTheFuture=oldnext
+                prev.notify_downstream(self)
+            else:
+                # We are neither first nor second.  Save our pointwrs
+                oldnext=self.backToTheFuture
+                oldprev=self.backInTime
+                newprev=oldprev.backInTime
+                # Disconnect self from prev and prev from new left link
+                self.backToTheFuture=None
+                oldprev.backInTime = None
+                # Connect old next record with oldprev as new head of right
+                # If oldnext is null ie end of list, no notification is done
+                # Otherwise forward propagation of the BIT pointer happens.
+                oldprev.backToTheFuture=oldnext
+                # This links pointers on the left end of the list
+                self.notify_downstream(newprev)
+                oldprev.notify_downstream(self)
+
+        parent.clear_widgets()
+        child=self.fluxFirst()
+        while child is not None:
+            parent.add_widget(child)
+            child=child.fluxNext()
+
+    def moveFluxRight(self, *args):
+        parent=self.parent
+        last=self.fluxLast()
+
+        if self is last:
+            newTail=self.backInTime
+
+            if newTail is None:
+                return
+
+            newTail.backToTheFuture=None
+            self.backInTime=None
+            newTail.fluxFirst().notify_downstream(self)
+        else:
+            nextitem=self.backToTheFuture
+            if nextitem.backToTheFuture is None:
+                # Moving to tail
+                self.backToTheFuture=None
+                nextitem.backInTime=self.backInTime
+                self.backInTime=None
+                nextitem.notify_downstream(nextitem.backInTime)
+                self.notify_downstream(nextitem)
+            else:
+                oldnext=self.backToTheFuture
+                oldprev=self.backInTime
+                newnext=oldnext.backToTheFuture
+                oldnext.backToTheFuture=None
+                self.backInTime=None
+                if oldprev is None:      # self is head of list
+                    oldnext.backInTime=None
+                else:
+                    oldprev.backToTheFuture=oldnext
+                newnext.notify_downstream(self)
+                self.notify_downstream(oldnext)
+
+
+        parent.clear_widgets()
+        child=self.fluxFirst()
+        while child is not None:
+            parent.add_widget(child)
+            child=child.fluxNext()
+
     def build_fusion_reactor(self):
         self.size_hint=(None,None)
         self.width=self.radius*2
@@ -252,12 +427,15 @@ class FluxCapacitor(RelativeLayout):
         self.set_density(fgcolors, bgcolors)
         self.set_calvin(fgcolors, bgcolors)
         self.set_flux_header(fgcolors, bgcolors)
+        self.set_buttons()
 
         self.add_widget(self.plutonium)
         self.add_widget(self.maddog)
         self.add_widget(self.density)
         self.add_widget(self.calvinklein)
         self.add_widget(self.fluxheader)
+        self.add_widget(self.navLeft)
+        self.add_widget(self.navright)
         for check in self.checks:
             self.add_widget(check)
 
@@ -300,36 +478,33 @@ class FluxCapacitor(RelativeLayout):
                                    self.center_y + self.radius * math.sin(math.radians(uwa)) * 0.8)
 
     def filter_expression(self):
-        if self.backInTime is not None:
-            print("Getting back in time filter expression")
-            queryparams=self.backInTime.filter_expression()
-            if queryparams is None:
-                queryparams=''
-            print(f"BIT is {queryparams}")
-        else:
-            queryparams=''
-
         if self.chkindex is None:
-            if queryparams == '':
-                return None
-
-            return queryparams
+            return None
 
         querystring: str = self.fieldexprs[self.chkindex]
 
         if querystring is None:
-            if queryparams == '':
-                return None
-
-            return queryparams
+            return None
 
         name=self.fieldname
         qs0=querystring.format(**locals())
 
-        if queryparams == '':
-            return qs0
+        return qs0
+
+    def filter_result(self):
+        if self.backInTime is not None:
+            filterset=self.backInTime.filter_result()
         else:
-            return f"({queryparams}) & ({qs0})"
+            filterset=self.df
+
+        fe=self.filter_expression()
+        print(f"Upstream returned a filterset of {len(filterset)} records.")
+        if fe is None:
+            print("Returning entire filterset unchanged")
+            return filterset
+        else:
+            print(f"returning op {self.boolop} fe {fe} ")
+            return filterset.filter(fe, mode=self.boolop)
 
     def __init__(self, fieldname: str, fieldgroup: str, fieldlabels: list[str],
                  fieldexpressions: list[str], fluxcolors: list, fluxtext, **kwargs):
@@ -355,22 +530,26 @@ class FluxCapacitor(RelativeLayout):
         # Save arguments before building our fusion reactor.  We'll need those
         # for later.
         self.kwargs={**kwargs}
+        self.boolop='and'
         self.build_fusion_reactor()
 
     def check_recordset(self):
-        print("In check_recordset():")
         if self.df is None:
             print("Strange someone giving me a null dataset...")
             return
 
         try:
-            fe=self.filter_expression()
-            if fe is not None:
-                self.plutonium.text=str(len(self.df.filter(fe,'and')))
+            fr=self.filter_result()
+            if fr is not None:
+                result2=len(fr)
+                print(f"result2 is {result2}")
+                self.plutonium.text=str(result2)
             else:
                 self.plutonium.text = str(len(self.df))
         except Exception as ex:
             self.plutonium.text='No data'
+            tb = traceback.format_exc()
+            print(tb)
 
     def on_df(self, instance, value):
         print("df update triggered")
@@ -379,7 +558,7 @@ class FluxCapacitor(RelativeLayout):
         self.checks[1].bind(state=self.on_state)
         self.checks[2].bind(state=self.on_state)
         if self.backToTheFuture is not None:
-            self.backToTheFuture.notify_upstream(self.df, self.filter_expression(), self)
+            self.backToTheFuture.notify_upstream(self.df.drop_filter(), self.filter_expression(), self)
 
     def notify_downstream(self, upstreamflux):
         print("Setting forward branch")
@@ -389,10 +568,11 @@ class FluxCapacitor(RelativeLayout):
         self.backInTime=caller
         if dataframe is not None:
             if self.df is None:
-                self.df = dataframe
-            elif dataframe != self.df:
-                self.df = dataframe
-
+                # Make sure the objects are independent.
+                self.df = dataframe.copy()
+            # We don't update df if its changed in the upstream
+            # as the select() needs to operate independently of
+            # other copies of the DataFrame
             self.check_recordset()
             if self.backToTheFuture is not None:
                 self.backToTheFuture.notify_upstream(self.df, self.filter_expression(), self)
@@ -403,11 +583,19 @@ class FluxCapacitor(RelativeLayout):
             # returned through
 
     def on_backToTheFuture(self, instance, value):
-        print("Entered on_bttf trigger, notifying upstream")
+        if self.backToTheFuture is None:
+            # Disconnected
+            return
+
         self.backToTheFuture.notify_upstream(self.df,self.filter_expression(),self)
 
-    def on_state(self, instance, value):
-        print("on_state() entered")
+    def on_state(self, *args):
+        print(f"on_state() entered")
+        if self.df is not None:
+            print(f"name is {self.fluxtext}, len df is {len(self.df)}")
+        else:
+            print("No dataframe yet")
+            return
         if self.checks[0].state == 'down':
             self.chkindex=0
         elif self.checks[1].state == 'down':
@@ -418,9 +606,8 @@ class FluxCapacitor(RelativeLayout):
             return
 
         print(f"chkindex is {self.chkindex}")
-        fe=self.filter_expression()
-        print(f"filter expression is {fe}")
-        if fe is None:
+        fr=self.filter_result()
+        if fr is None:
             try:
                 self.resultsize = len(self.df)
                 self.plutonium.text = str(self.resultsize)
@@ -430,8 +617,14 @@ class FluxCapacitor(RelativeLayout):
                 print(tb)
         else:
             try:
-                self.resultsize=len(self.df.filter(self.filter_expression(), 'and'))
-                self.plutonium.text=str(self.resultsize)
+                dfsize=len(self.df)
+
+                result2=len(fr)
+                self.plutonium.text = str(result2)
+
+                print(f"plutonium should have just updated to {result2}.\nThe original df len is {dfsize}")
+                print(f"get_active_range returns {self.df.get_active_range()}")
+                print(f"result2 is {result2}")
             except Exception as ex:
                 self.plutonium.text="Data error"
                 tb=traceback.format_exc()
@@ -439,7 +632,7 @@ class FluxCapacitor(RelativeLayout):
 
         if self.backToTheFuture is not None:
             print("Notifying upstream...")
-            self.backToTheFuture.notify_upstream(self.df, self.filter_expression(), self)
+            self.backToTheFuture.notify_upstream(self.df.drop_filter(), self.filter_expression(), self)
         else:
             print("No upstream to notify")
 
