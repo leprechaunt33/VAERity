@@ -51,9 +51,9 @@ class DataQueryViewScreen(Screen):
         # the order of operations needs to be changed for the emergency fields to respect operator
         # symmetry in the operator chaining.
 
-        fe=self.george.filter_expression()
-        if fe is not None:
-            filterset=filterset.filter(fe)
+        fr=self.lorraine.filter_result()
+        if fr is not None:
+            filterset=fr
             rs_stats.extend(['FLUX',len(filterset)])
 
 
@@ -310,7 +310,7 @@ class DataQueryViewScreen(Screen):
         hbox1.add_widget(Label(size_hint_y=None, height=50))
         vbox.add_widget(hbox1)
 
-        hbox1 = BoxLayout(orientation='horizontal', size_hint=[1, None], height=250)
+        hbox1 = GridLayout(size_hint=[1, None], height=400, cols=5)
         self.marty = FluxCapacitor('DIED','fluxdeath',['Yes', 'No', "Don't Care"],
                               ["{name} == 'Y'", "~str_contains({name},'^Y$')", None], [], fluxtext='Deaths')
 
@@ -329,17 +329,23 @@ class DataQueryViewScreen(Screen):
         self.george = FluxCapacitor('BIRTH_DEFECT','fluxbirth',['Yes', 'No', "Don't Care"],
                               ["{name} == 'Y'", "~str_contains({name},'^Y$')", None], [], fluxtext='Birth Defect?')
 
+        self.lorraine = FluxCapacitor('SYMPTOM_TEXT','fluxlen',['<2000 (short)', '>=2000 (long)', "Don't Care"],
+                              ["str_len(SYMPTOM_TEXT) < 2000", "str_len(SYMPTOM_TEXT) >= 2000", None], [],
+                            fluxtext='Level of detail?')
+
         hbox1.add_widget(self.marty)
         hbox1.add_widget(self.jennifer)
         hbox1.add_widget(self.doc)
         hbox1.add_widget(self.needles)
         hbox1.add_widget(self.strickland)
         hbox1.add_widget(self.george)
+        hbox1.add_widget(self.lorraine)
         self.jennifer.notify_downstream(self.marty)
         self.doc.notify_downstream(self.jennifer)
         self.needles.notify_downstream(self.doc)
         self.strickland.notify_downstream(self.needles)
         self.george.notify_downstream(self.strickland)
+        self.lorraine.notify_downstream(self.george)
         vbox.add_widget(hbox1)
 
         # Booleans - deaths, hospitalisations, disabled and emergency room visits
