@@ -1,10 +1,13 @@
 # TODO: Change startup screen to move to a carousal or random image transition after the logo screen.  Update logo.
 
 import asyncio
+import datetime
+from datetime import timedelta
 import importlib.util
 import json
 import random
-
+import time
+import pytz
 import kivy.uix.image
 from kivy.config import Config
 from kivy.uix.image import Image
@@ -14,6 +17,8 @@ from kivy.uix.widget import Widget
 from kivy.utils import get_color_from_hex
 import pyautogui
 import sys
+
+from matplotlib.patches import Rectangle
 
 from configsettings import VaeritySettings
 from dataquerystatscreen import DataQueryStatScreen
@@ -225,34 +230,16 @@ class RootWindow(App):
         else:
             keyname=''
 
-        if all(m in modifier for m in ['ctrl', 'alt']) and codepoint == 'm':
+        if self.manager.current == 'statscreen':
+            statscreen: DataQueryStatScreen = self.manager.get_screen('statscreen')
+            statscreen.handle_keyboard(window, key, scancode, codepoint, modifier, keyname)
+        elif all(m in modifier for m in ['ctrl', 'alt']) and codepoint == 'm':
             modlist=open('modules.txt','w')
             print(json.dumps(list(sys.modules.keys())),file=modlist)
             modlist.close()
             print(json.dumps(list(sys.modules.keys())))
-        elif all(m in modifier for m in ['ctrl', 'alt']) and codepoint == 'n':
-            print("Matched modifiers and codepoint")
-            if self.manager.current == 'statscreen':
-                statscreen: DataQueryStatScreen=self.manager.get_screen('statscreen')
-                statscreen.current_figure=(statscreen.current_figure+1) % len(statscreen.figs)
-            else:
-                print(f"{self.manager.current}")
         elif (len(modifier) == 0) and ( keyname in self.navkeys):
-            if self.manager.current == 'statscreen':
-                statscreen: DataQueryStatScreen = self.manager.get_screen('statscreen')
-                if keyname == 'right':
-                    statscreen._sv.scroll_x=min(statscreen._sv.scroll_x + 1/250,1)
-                elif keyname == 'left':
-                    statscreen._sv.scroll_x = max(statscreen._sv.scroll_x - 1 / 250, 0)
-                elif keyname == 'up':
-                    statscreen._sv.scroll_y = min(statscreen._sv.scroll_y + 1 / 250, 1)
-                elif keyname == 'down':
-                    statscreen._sv.scroll_y = max(statscreen._sv.scroll_y - 1 / 250, 0)
-                elif keyname == 'pageup':
-                    statscreen._sv.scroll_y = min(statscreen._sv.scroll_y + 1 / 25, 1)
-                elif keyname == 'pagedown':
-                    statscreen._sv.scroll_y = max(statscreen._sv.scroll_y - 1 / 25, 0)
-            elif self.manager.current == 'resultscreen':
+            if self.manager.current == 'resultscreen':
                 resultscreen: DataQueryResultScreen=self.manager.get_screen(self.manager.current)
                 focus=self.current_focus()
                 if (focus is None) or (not isinstance(focus, TextInput)):
@@ -275,8 +262,6 @@ class RootWindow(App):
 
                 else:
                     print(focus)
-        #else:
-            #print(f"{modifier}, {keyname}, {scancode}")
 
     def load_splash_screen(self,*args):
         resourcesdir=os.path.join(os.path.dirname(__file__),'resources')
