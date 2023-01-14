@@ -131,10 +131,10 @@ class ModularDataset:
             rf = [rf]
 
         for item in rf:
-            if 'splitter' in rf:
-                if rf['splitter'] is not None:
+            if 'splitter' in item:
+                if item['splitter'] is not None:
                     splitr=Splitter()
-                    splitr.sizable_from=rf['splitter']
+                    splitr.sizable_from=item['splitter']
                 else:
                     splitr=None
             else:
