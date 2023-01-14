@@ -477,6 +477,53 @@ class FluxCapacitor(RelativeLayout):
                                    self.center_x + self.radius * math.cos(math.radians(uwa)) * 0.8,
                                    self.center_y + self.radius * math.sin(math.radians(uwa)) * 0.8)
 
+    def row_indices(self, recursive):
+        if self.chkindex is None:
+            return None
+
+        querystring = self.fieldexprs[self.chkindex]
+
+        if querystring is None:
+            return None
+
+        if isinstance(querystring, str):
+            qs0=[querystring]
+        elif isinstance(querystring,list):
+            qs0=querystring
+
+        setunion=[]
+
+        if 'compoundop' in self.kwargs:
+            compoundop=self.kwargs['compoundop']
+        else:
+            compoundop='|' * len(querystring)
+
+        for sqi, subquery in enumerate(qs0):
+            indices=[i for i, b in enumerate(self.df.evaluate(subquery).to_pylist()) if b]
+            if compoundop[sqi] == '|':
+                setunion = set().union(indices, setunion)
+            else:
+                setunion = set().intersection(indices, setunion)
+
+        if recursive:
+            if self.backInTime is not None:
+                filterset=self.backInTime.row_indices(True)
+                if self.boolop == 'and':
+                    setunion=set().intersection(setunion, filterset)
+                else:
+                    setunion=set().union(setunion, filterset)
+                return setunion
+            else:
+                return setunion
+        else:
+            return setunion
+
+    def selection(self):
+        if self.chkindex is None:
+            return ''
+        else:
+            return self.fieldlabels[self.chkindex]
+
     def filter_expression(self):
         if self.chkindex is None:
             return None
@@ -492,19 +539,22 @@ class FluxCapacitor(RelativeLayout):
         return qs0
 
     def filter_result(self):
-        if self.backInTime is not None:
-            filterset=self.backInTime.filter_result()
+        if 'compoundop' in self.kwargs:
+            return self.df.take(self.row_indices(True))
         else:
-            filterset=self.df
+            if self.backInTime is not None:
+                filterset = self.backInTime.filter_result()
+            else:
+                filterset = self.df
 
-        fe=self.filter_expression()
-        print(f"Upstream returned a filterset of {len(filterset)} records.")
-        if fe is None:
-            print("Returning entire filterset unchanged")
-            return filterset
-        else:
-            print(f"returning op {self.boolop} fe {fe} ")
-            return filterset.filter(fe, mode=self.boolop)
+            fe=self.filter_expression()
+            print(f"Upstream returned a filterset of {len(filterset)} records.")
+            if fe is None:
+                print("Returning entire filterset unchanged")
+                return filterset
+            else:
+                print(f"returning op {self.boolop} fe {fe} ")
+                return filterset.filter(fe, mode=self.boolop)
 
     def __init__(self, fieldname: str, fieldgroup: str, fieldlabels: list[str],
                  fieldexpressions: list[str], fluxcolors: list, fluxtext, **kwargs):
