@@ -10,7 +10,7 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.textinput import TextInput
 from kivy.uix.togglebutton import ToggleButton
 import threading
-
+import time
 from kivy.utils import get_color_from_hex
 
 from dataframegridview import ColoredButton, ColoredLabel
@@ -56,45 +56,83 @@ class DataQueryViewScreen(Screen):
             filterset=fr
             rs_stats.extend(['FLUX',len(filterset)])
 
+        if self.ids['symptomregex'].text != '':
+            symptom =self.ids['symptomregex'].text
+            fset = currapp.df['symptoms'].filter(f"str_contains(str_lower(SYMPTOM1),'{symptom}')")
+            self._statusfield.text=f"Identifying records matching symptom regex: {len(fset)}"
+            fset = fset.filter(f"str_contains(str_lower(SYMPTOM2),'{symptom}')", 'or')
+            self._statusfield.text = f"Identifying records matching symptom regex: {len(fset)}"
+            fset = fset.filter(f"str_contains(str_lower(SYMPTOM3),'{symptom}')", 'or')
+            self._statusfield.text = f"Identifying records matching symptom regex: {len(fset)}"
+            fset = fset.filter(f"str_contains(str_lower(SYMPTOM4),'{symptom}')", 'or')
+            self._statusfield.text = f"Identifying records matching symptom regex: {len(fset)}"
+            fset = fset.filter(f"str_contains(str_lower(SYMPTOM5),'{symptom}')", 'or')
+            self._statusfield.text = f"Identifying records matching symptom regex: {len(fset)}"
 
-        if self.checks['emergency0'].state == 'down':
-            filterset=filterset.filter("ER_VISIT == 'Y'","or")
-            rs_stats.extend(['ER_VISIT',len(filterset)])
-            filterset=filterset.filter("ER_ED_VISIT == 'Y'","or")
-            rs_stats.extend(['ER_ED_VISIT',len(filterset)])
+            reports=fset.VAERS_ID.unique()
 
-        self._statusfield.text=f"{len(filterset)} records..."
+            vid = filterset.VAERS_ID.tolist()
+            s = reports[0]
+            e = reports[-1]
+            r = e - s + 1
+            b = 1 + r // 100  # ie 1 bin of 100 for 99 records
+            print(f"s={s},e={e},r={r},b={b}")
+            sets = [set() for i in range(b + 1)]
+            for id in reports:
+                sets[(id - s) // b].add(id)
 
-        if self.checks['deaths0'].state == 'down':
-            filterset=filterset.filter("DIED == 'Y'",'or')
-            rs_stats.extend(['DEATHS0',len(filterset)])
-        elif self.checks['deaths1'].state == 'down':
-            filterset=filterset.filter("DIED != 'Y'",'or')
-            rs_stats.extend(['DEATHS1',len(filterset)])
+            start_time = time.perf_counter()
+            print('List of list enumeration...')
+            idx = []
+            for i, y in enumerate(vid):
+                try:
+                    if (y >= s) and (y <= e) and (y in sets[(y - s) // b]):
+                        idx.append(i)
+                except Exception as ex:
+                    print(f"Exception caught at {i}, {y}, {y - s}//{b}")
 
-        self._statusfield.text=f"{len(filterset)} records..."
+            print("taking results...")
+            filterset = filterset.take(idx)
+            end_time = time.perf_counter()
 
-        if self.checks['hosp0'].state == 'down':
-            filterset=filterset.filter("HOSPITAL == 'Y'",'or')
-            rs_stats.extend(['HOSP0',len(filterset)])
-        elif self.checks['hosp1'].state == 'down':
-            filterset=filterset.filter("HOSPITAL != 'Y'",'or')
-            rs_stats.extend(['HOSP1',len(filterset)])
-
-        self._statusfield.text=f"{len(filterset)} records..."
-
-        if self.checks['disabled0'].state == 'down':
-            filterset=filterset.filter("DISABLE == 'Y'",'or')
-            rs_stats.extend(['DISABLED0',len(filterset)])
-        elif self.checks['disabled1'].state == 'down':
-            filterset=filterset.filter("DiSABLE != 'Y'",'or')
-            rs_stats.extend(['DISABLED1',len(filterset)])
-
-        self._statusfield.text=f"{len(filterset)} records..."
-
-        if self.checks['emergency1'].state == 'down':
-            filterset=filterset.filter("ER_VISIT != 'Y'", 'and').filter("ER_ED_VISIT != 'Y'",'and')
-            rs_stats.extend(['EMERGENCY1',len(filterset)])
+        # if self.checks['emergency0'].state == 'down':
+        #     filterset=filterset.filter("ER_VISIT == 'Y'","or")
+        #     rs_stats.extend(['ER_VISIT',len(filterset)])
+        #     filterset=filterset.filter("ER_ED_VISIT == 'Y'","or")
+        #     rs_stats.extend(['ER_ED_VISIT',len(filterset)])
+        #
+        # self._statusfield.text=f"{len(filterset)} records..."
+        #
+        # if self.checks['deaths0'].state == 'down':
+        #     filterset=filterset.filter("DIED == 'Y'",'or')
+        #     rs_stats.extend(['DEATHS0',len(filterset)])
+        # elif self.checks['deaths1'].state == 'down':
+        #     filterset=filterset.filter("DIED != 'Y'",'or')
+        #     rs_stats.extend(['DEATHS1',len(filterset)])
+        #
+        # self._statusfield.text=f"{len(filterset)} records..."
+        #
+        # if self.checks['hosp0'].state == 'down':
+        #     filterset=filterset.filter("HOSPITAL == 'Y'",'or')
+        #     rs_stats.extend(['HOSP0',len(filterset)])
+        # elif self.checks['hosp1'].state == 'down':
+        #     filterset=filterset.filter("HOSPITAL != 'Y'",'or')
+        #     rs_stats.extend(['HOSP1',len(filterset)])
+        #
+        # self._statusfield.text=f"{len(filterset)} records..."
+        #
+        # if self.checks['disabled0'].state == 'down':
+        #     filterset=filterset.filter("DISABLE == 'Y'",'or')
+        #     rs_stats.extend(['DISABLED0',len(filterset)])
+        # elif self.checks['disabled1'].state == 'down':
+        #     filterset=filterset.filter("DiSABLE != 'Y'",'or')
+        #     rs_stats.extend(['DISABLED1',len(filterset)])
+        #
+        # self._statusfield.text=f"{len(filterset)} records..."
+        #
+        # if self.checks['emergency1'].state == 'down':
+        #     filterset=filterset.filter("ER_VISIT != 'Y'", 'and').filter("ER_ED_VISIT != 'Y'",'and')
+        #     rs_stats.extend(['EMERGENCY1',len(filterset)])
 
         self._statusfield.text=f"{len(filterset)} records..."
 
@@ -259,11 +297,11 @@ class DataQueryViewScreen(Screen):
     def reset_form(self):
         print("Reset form called")
 
-        boolcolumns = ['deaths', 'hosp', 'disabled', 'emergency']
-        for b in boolcolumns:
-            self.checks[f"{b}2"].state='down'
-            self.checks[f"{b}0"].state = 'normal'
-            self.checks[f"{b}1"].state = 'normal'
+        # boolcolumns = ['deaths', 'hosp', 'disabled', 'emergency']
+        # for b in boolcolumns:
+        #     self.checks[f"{b}2"].state='down'
+        #     self.checks[f"{b}0"].state = 'normal'
+        #     self.checks[f"{b}1"].state = 'normal'
 
         for field in ['SEX','VAX_MANU', 'VAX_TYPE','VAX_DOSE_SERIES']:
             self.spinners[field].text=''
@@ -323,57 +361,82 @@ class DataQueryViewScreen(Screen):
         self.needles = FluxCapacitor('L_THREAT','fluxthreat',['Yes', 'No', "Don't Care"],
                               ["{name} == 'Y'", "~str_contains({name},'^Y$')", None], [], fluxtext='Life Threatening')
 
+        self.jailbird = FluxCapacitor('ER_VISIT','fluxer1',['Yes', 'No', "Don't Care"],
+                              ["{name} == 'Y'", "~str_contains({name},'^Y$')", None], [], fluxtext='ER Visit (VAERS 1)')
+
+        self.joey = FluxCapacitor('ER_ED_VISIT','fluxer1',['Yes', 'No', "Don't Care"],
+                              ["{name} == 'Y'", "~str_contains({name},'^Y$')", None], [], fluxtext='ER Visit (VAERS 2+)')
+
         self.strickland = FluxCapacitor('OFC_VISIT','fluxofc',['Yes', 'No', "Don't Care"],
                               ["{name} == 'Y'", "~str_contains({name},'^Y$')", None], [], fluxtext='Office/Clinic visit')
 
         self.george = FluxCapacitor('BIRTH_DEFECT','fluxbirth',['Yes', 'No', "Don't Care"],
                               ["{name} == 'Y'", "~str_contains({name},'^Y$')", None], [], fluxtext='Birth Defect?')
 
-        self.lorraine = FluxCapacitor('SYMPTOM_TEXT','fluxlen',['<2000 (short)', '>=2000 (long)', "Don't Care"],
+        self.lorraine = FluxCapacitor('SYMPTOM_TEXT','fluxlen',['Short', 'Long', "Don't Care"],
                               ["str_len(SYMPTOM_TEXT) < 2000", "str_len(SYMPTOM_TEXT) >= 2000", None], [],
                             fluxtext='Level of detail?')
+
+        #self.compounded = FluxCapacitor('ER_ED_VISIT','fluxer',['Yes', 'No', "Don't Care"],
+        #                      [["ER_ED_VISIT== 'Y'", "ER_VISIT== 'Y'"],
+        #                       ["~str_contains(ER_ED_VISIT,'^Y$')", "~str_contains(ER_VISIT,'^Y$')"],
+        #                          None], [],
+        #                    fluxtext='Emergency Room Visits?', compoundop='||')
 
         hbox1.add_widget(self.marty)
         hbox1.add_widget(self.jennifer)
         hbox1.add_widget(self.doc)
         hbox1.add_widget(self.needles)
+        hbox1.add_widget(self.jailbird)
+        hbox1.add_widget(self.joey)
         hbox1.add_widget(self.strickland)
         hbox1.add_widget(self.george)
         hbox1.add_widget(self.lorraine)
+        self.flux=dict()
+        self.flux['deaths']=self.marty
+        self.flux['hospital']=self.jennifer
+        self.flux['disable']=self.doc
+        self.flux['lthreat']=self.needles
+        self.flux['er0']=self.jailbird
+        self.flux['er1']=self.joey
+        #hbox1.add_widget(self.compounded)
         self.jennifer.notify_downstream(self.marty)
         self.doc.notify_downstream(self.jennifer)
         self.needles.notify_downstream(self.doc)
-        self.strickland.notify_downstream(self.needles)
+        self.jailbird.notify_downstream(self.needles)
+        self.joey.notify_downstream(self.jailbird)
+        self.strickland.notify_downstream(self.joey)
         self.george.notify_downstream(self.strickland)
         self.lorraine.notify_downstream(self.george)
+        #self.compounded.notify_downstream(self.lorraine)
         vbox.add_widget(hbox1)
 
         # Booleans - deaths, hospitalisations, disabled and emergency room visits
-        answers=['Yes','No',"Don't Care"]
-        boolcolumns=['deaths','hosp','disabled','emergency']
-        coldesc=['Deaths','Hospitalisations','Disabled','Emergency Room Visit?']
-        for option2 in boolcolumns:
-            glayout = GridLayout(cols=7, size_hint_x=1, size_hint_y=None, padding=5, height=60)
-            hbox2 = BoxLayout(orientation='horizontal', size_hint_x=1, size_hint_y=None, padding=5, height=60)
-            label1 = ColoredLabel(rgba, size_hint_x=0.2, size_hint_y=None, height=50, color=textcolor,
-                                  text=coldesc[boolcolumns.index(option2)]
-                                  )
-
-            glayout.add_widget(label1)
-
-            for option1 in answers:
-                boxname=f"{option2}{answers.index(option1)}"
-                cbox=ToggleButton(group=option2, size_hint_y=None, height=25, size_hint_x=None, width=40,
-                                  allow_no_selection = False, background_color=cboxcol)
-                if answers.index(option1) == 2:
-                    cbox.state='down'
-                cblabel= Label(text=option1, size_hint_y = None, height=50, size_hint_x = 0.15, color=textcolor)
-                glayout.add_widget(cbox)
-                glayout.add_widget(cblabel)
-                self.checks[boxname]=cbox
-
-            #hbox2.add_widget(glayout)
-            vbox.add_widget(glayout)
+        # answers=['Yes','No',"Don't Care"]
+        # boolcolumns=['deaths','hosp','disabled','emergency']
+        # coldesc=['Deaths','Hospitalisations','Disabled','Emergency Room Visit?']
+        # for option2 in boolcolumns:
+        #     glayout = GridLayout(cols=7, size_hint_x=1, size_hint_y=None, padding=5, height=60)
+        #     hbox2 = BoxLayout(orientation='horizontal', size_hint_x=1, size_hint_y=None, padding=5, height=60)
+        #     label1 = ColoredLabel(rgba, size_hint_x=0.2, size_hint_y=None, height=50, color=textcolor,
+        #                           text=coldesc[boolcolumns.index(option2)]
+        #                           )
+        #
+        #     glayout.add_widget(label1)
+        #
+        #     for option1 in answers:
+        #         boxname=f"{option2}{answers.index(option1)}"
+        #         cbox=ToggleButton(group=option2, size_hint_y=None, height=25, size_hint_x=None, width=40,
+        #                           allow_no_selection = False, background_color=cboxcol)
+        #         if answers.index(option1) == 2:
+        #             cbox.state='down'
+        #         cblabel= Label(text=option1, size_hint_y = None, height=50, size_hint_x = 0.15, color=textcolor)
+        #         glayout.add_widget(cbox)
+        #         glayout.add_widget(cblabel)
+        #         self.checks[boxname]=cbox
+        #
+        #     #hbox2.add_widget(glayout)
+        #     vbox.add_widget(glayout)
 
         glayout = GridLayout(cols=6, size_hint_x=1, size_hint_y=None, padding=5, height=60)
 
@@ -592,6 +655,15 @@ class DataQueryViewScreen(Screen):
         self.ids['AGE_YRS']=currapp.rangedfields['AGE_YRS']
 
         vbox.add_widget(hbox1)
+
+        hbox1=BoxLayout(orientation='horizontal', size_hint_y=None, height=60, padding=11)
+        self.ids['symptomregex']=TextInput(size_hint_y=None, height=50, foreground_color=tboxfg,
+                                            background_color=tboxbg, size_hint_x=0.4)
+        hbox1.add_widget(ColoredLabel(rgba, size_hint_x=0.2, size_hint_y=None, height=50,
+                                      text='Symptom regex:', color=textcolor))
+        hbox1.add_widget(self.ids['symptomregex'])
+        vbox.add_widget(hbox1)
+
 
         #hbox1=BoxLayout(orientation='horizontal', size_hint_y=None, height=60, padding=11)
         #hbox1.add_widget(
