@@ -1,4 +1,5 @@
 import datetime
+import json
 import math
 import re
 import threading
@@ -38,7 +39,7 @@ class DataQueryResultScreen(Screen):
     recordFormat = [{'type': 'hbox', 'content': [
         {'label': 'PATIENT', 'stylekeys': ['patiendata.background', 'patientdata.textcolor'],
          'ref_func': 'narrow_state', 'ref_resolver': 'self', 'formula': 'patient_header',
-         'labelonly': True, 'resolver': 'self', 'id': 'patient', 'kwargs': {'bold': True}}]},
+         'labelonly': True, 'resolver': 'self', 'id': 'patient', 'kwargs': {'bold': True, 'text_size': [600, 150]}}]},
                     {'tablename': 'patientdata', 'cols': 2, 'rows': 3,
                      'stylekeys': ['patientdata.background', 'patientdata.textcolor',
                                    'eventheader.background', 'eventheader.textcolor',
@@ -382,9 +383,15 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         for i in range(1, 6):
             syms.extend([x for x in map(lambda s: s.as_py(),symrows[f"SYMPTOM{i}"]) if ((x is not None) and (len(x)>0))])
 
-        return f"PATIENT ({self.formatmissing(row.SEX)}, {self.age(row)}, [color=#2222FF][ref=state]{self.formatmissing(row.STATE)}[/ref][/color]), {len(syms)} symptom(s)\n{', '.join(syms)}\n"
-        caller.ids['patient'].text_size=(self.currapp.root.width, 150)
-        caller.ids['patient'].valign='center'
+        pt: Label=caller.ids['patient']
+
+        pt.text=f"PATIENT ({self.formatmissing(row.SEX)}, {self.age(row)}, [color=#2222FF][ref=state]{self.formatmissing(row.STATE)}[/ref][/color]), {len(syms)} symptom(s)\n{', '.join(syms)}\n"
+        pt.texture_update()
+        lblheight=max(pt.texture_size[1]*1.1, 100)
+        pt.text_size=(self.currapp.root.width * 0.9, lblheight)
+        pt.valign='center'
+        return pt.text
+
 
     def print_vaxtype(self, r, f, caller):
         return f"[ref=vaxtype][color=#6666FF][u]{caller.formatmissing(r.VAX_TYPE)}[/u][/color][/ref]"
@@ -401,25 +408,6 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         for id in self.md.ids.keys():
             self.md.ids[id].text=self.md.formula(id, row, self)
 
-        #self.ids['vaxdate'].text=self.formatmissing(row.VAX_DATE)
-        #self.ids['vaxdate'].text=self.md.formula('vaxdate', row, self)
-        #self.ids['onset'].text=self.formatmissing(row.ONSET_DATE)
-        #self.ids['numdays'].text=self.formatmissing(row.NUMDAYS)
-        #self.ids['classification'].text=self.md.formula('classification', row, self)
-        #self.ids['lthreat'].text=self.boolformat(row.L_THREAT)
-        #self.ids['x_stay'].text=self.md.formula('x_stay', row, self)
-        #self.ids['vaxtype'].text= f"[ref=vaxtype][color=#6666FF][u]{self.formatmissing(row.VAX_TYPE)}[/u][/color][/ref]"
-        #self.ids['vaxmanu'].text = self.formatmissing(row.VAX_MANU)
-        #self.ids['vaxroute'].text = self.formatmissing(row.VAX_ROUTE)
-        #self.ids['vaxdose'].text = self.formatmissing(row.VAX_DOSE_SERIES)
-        #self.ids['vaxlot'].text = f"[ref=batch][color=#6666FF][u]{self.formatmissing(row.VAX_LOT)}[/u][/color][/ref]"
-        #self.ids['vaxsite'].text = self.formatmissing(row.VAX_SITE)
-        #self.ids['labdata'].text = self.formatmissing(row.LAB_DATA)
-        #self.ids['symptomtext'].text = self.formatmissing(row.SYMPTOM_TEXT)
-        #self.ids['allergies'].text = self.formatmissing(row.ALLERGIES)
-        #self.ids['medications'].text = self.formatmissing(row.OTHER_MEDS)
-        #self.ids['history'].text = self.formatmissing(row.HISTORY)
-        #self.ids['current'].text = self.formatmissing(row.CUR_ILL)
         self._navIndex.text=str(self.start_index)
         self._rh.text=self.record_header()
 
@@ -485,9 +473,9 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
             return f"Record {self.start_index+1} of {len(self._ds)} records"
 
     @mainthread
-    def showplot(self, fig):
+    def showplot(self, fig, xdata):
         ss=self.currapp.manager.get_screen('statscreen')
-        ss.set_figure(fig)
+        ss.set_figure(fig, xdata)
         self.currapp.manager.current = 'statscreen'
 
     def summarize_plot(self,*args):
@@ -508,16 +496,16 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
                 subhead = f"{subhead} for {dq.ids['STATE'].text}"
 
         narrow_criteria=[]
-        if dq.checks['deaths0'].state == 'down':
+        if dq.flux['deaths'].selection() == 'Yes':
             narrow_criteria.append('deaths')
 
-        if dq.checks['hosp0'].state == 'down':
+        if dq.flux['hospital'].selection() == 'Yes':
             narrow_criteria.append('hospitalisations')
 
-        if dq.checks['disabled0'].state == 'down':
+        if dq.flux['disable'].selection() == 'Yes':
             narrow_criteria.append('disabled')
 
-        if dq.checks['emergency0'].state == 'down':
+        if (dq.flux['er0'].selection() == 'Yes') or (dq.flux['er1'].selection() == 'Yes'):
             narrow_criteria.append('ER visits')
 
         if len(narrow_criteria) >0:
@@ -649,32 +637,50 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         mypal = sns.color_palette('deep')[0:maxsym]
         navals = self._ds.isnull().sum().sort_values().reset_index()
         bymanu=self._ds.VAX_MANU.value_counts().reset_index()
+        xdata=[[]]
         
         plt.rcParams['axes.grid']=True
         # NA values - graph at top left
         statusupdate("MPL STARTING",7)
+        xdata[0].append(navals[0].to_list())
         sns.barplot(y=navals['index'].to_list(), x=navals[0].to_list(), ax=ax0)
+        ax0.set_title("Data Insights by % filled")
         # Top symptoms - left, middle
         sns.barplot(y=c['s'][0,0:maxsym],x=c['c'][0,0:maxsym], palette=mypal, ax=ax1)
+        ax1.set_title("Most common symptoms")
+        xdata[0].append(c['c'][0,0:maxsym])
         # Incidents by manufacturer - bottom left.
         sns.barplot(data=bymanu, y='index', x='VAX_MANU', palette=mypal, ax=ax2)
+        ax2.set_title("Reports by Manufacturer")
+        xdata[0].append(bymanu['VAX_MANU'])
         statusupdate("MPL 3 of 10",8)
         # Numdays cumulative - upper middle
         out=self._ds
         sns.histplot(data=out[out.DIED == 'Y'], x="NUMDAYS", binrange=[0, 60], binwidth=1,
                      cumulative=True, color="red", ax=ax5)
+        xdata[0].append(out['NUMDAYS'].tolist())
         sns.histplot(data=out[out.HOSPITAL == 'Y'], x="NUMDAYS",
                          binrange=[0, 60], binwidth=1, alpha=0.7, cumulative=True, color="blue", ax=ax5)
         sns.histplot(data=out[(out.DISABLE == 'Y') | (out.L_THREAT == 'Y')], x="NUMDAYS",
                      binrange=[0, 60], binwidth=1, alpha=0.5, cumulative=True, color="orange", ax=ax5)
         sns.histplot(data=out[(out.ER_ED_VISIT == 'Y') | (out.ER_VISIT == 'Y')], x="NUMDAYS",
                      binrange=[0, 60], binwidth=1, alpha=0.2, cumulative=True, color="green", ax=ax5)
+        ax5.set_title("Cumulative by days onset")
             # Histograms and final summary
         statusupdate("MPL MULTIPLOT",9)
         sns.histplot(x=self._ds.HOSPDAYS, bins=50, binrange=[0,49], ax=ax4)
+        ax4.set_title("Hospital Stays")
+
         sns.histplot(x=self._ds.AGE_YRS, bins=24, ax=ax3)
         sns.histplot(x=self._ds.CAGE_YR, bins=24, ax=ax3, alpha=0.2)
+        ax3.set_title("Age distribution")
+
         sns.barplot(x=xsummary, y=ysummary, palette=mypal, ax=ax6)
+        ax6.set_title("At a glance")
+
+        xdata[0].append(self._ds.HOSPDAYS.tolist())
+        xdata[0].append(self._ds.AGE_YRS.tolist())
+        xdata[0].append(xsummary)
 
         statusupdate("MPL HISTS DONE",10)
 
@@ -684,8 +690,12 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
             maxbatch=len(BATCHES)
 
         sns.barplot(x=STATES.index, y=STATES.values, ax=ax7, palette=mypal)
+        ax7.set_title("Top States in Dataset")
+        xdata[0].append(STATES.index)
         sns.barplot(x=BATCHES.iloc[0:maxbatch].index, y=BATCHES.iloc[0:maxbatch].values, ax=ax8, palette=mypal)
-        statusupdate("MPL PLOT COMPLETE",10)
+        ax8.set_title(f"Top batches ({maxbatch} shown)")
+        xdata[0].append(BATCHES.iloc[0:maxbatch].index)
+        statusupdate("MPL PLOT PAGE 1/2 COMPLETE",10)
 
         ax6.tick_params(axis="x", rotation=45)
         ax8.tick_params(axis="x", rotation=45)
@@ -699,15 +709,59 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         ax3.set_xlabel("Age at vaccination")
 
         fig2 = plt.figure(figsize=(25, 25), dpi=100)
-        gs2 = fig2.add_gridspec(2, 1)
-        ts0 = fig2.add_subplot(gs2[0])
-        ts1 = fig2.add_subplot(gs2[1])
+        gs2 = fig2.add_gridspec(4, 1)
+        ts=[]
+        ts.append(fig2.add_subplot(gs2[0]))
+        ts.append(fig2.add_subplot(gs2[1]))
+        ts.append(fig2.add_subplot(gs2[2]))
+        ts.append(fig2.add_subplot(gs2[3]))
+
+        tsindex=0
+        xdata.append([])
+
+        dq=self.currapp.manager.get_screen('dataqueryscreen')
+        if (len(BATCHES) == 1) or (dq.ids['VAX_LOT'].tbox.text != ''):
+            gby = self._ds.value_counts(['weekdate', 'VAX_LOT'], dropna=False).reset_index(name='count')
+            pivot = gby.pivot_table(index='weekdate', columns=['VAX_LOT'], values='count', dropna=False)
+            pivot.fillna(value=0, inplace=True)
+
+            unique_axes=gby['VAX_LOT'].unique()
+            seriez=[pivot[y].to_list() for y in pivot.columns]
+
+            ts[tsindex].stackplot(pivot.index, *seriez, labels=unique_axes)
+
+            ts[tsindex].set_title("Reports for batch by time")
+            xmin=gby['weekdate'].min()
+            xmax=gby['weekdate'].max()
+            ts[tsindex].set_xlim(left=xmin, right=xmax)
+            xdata[1].append(pivot.index)
+
+            tsindex += 1
+
+        if (len(STATES) == 1) or (dq.ids['STATE'].text != ''):
+            gby = self._ds.value_counts(['weekdate', 'STATE'], dropna=False).reset_index(name='count')
+            pivot = gby.pivot_table(index='weekdate', columns=['STATE'], values='count', dropna=False)
+            pivot.fillna(value=0, inplace=True)
+
+            unique_axes=gby['STATE'].unique()
+            seriez=[pivot[y].to_list() for y in pivot.columns]
+
+            lines=ts[tsindex].stackplot(pivot.index, *seriez, labels=unique_axes)
+            plt.legend()
+            xmin=gby['weekdate'].min()
+            xmax=gby['weekdate'].max()
+            ts[tsindex].set_xlim(left=xmin, right=xmax)
+            ts[tsindex].set_title("Reports per state by time")
+            xdata[1].append(pivot.index)
+
+            tsindex += 1
 
         gby=self._ds.value_counts(['weekdate','STATE'], dropna=False).reset_index(name='count')
         pivot=gby.pivot_table(index='weekdate',columns=['STATE'], values='count', dropna=False)
-        sns.heatmap(pivot, ax=ts0)
+        sns.heatmap(pivot, ax=ts[tsindex])
+        statusupdate("MPL PLOT PAGE 2/2 COMPLETE",10)
         figs.append(fig2)
-        self.showplot(figs)
+        self.showplot(figs, xdata)
 
     def statsscreen(self, *args):
         self.idlist=sorted(self._ds['VAERS_ID'].to_list())
