@@ -15,3 +15,5 @@ vaerity.spec
 syntax-check.rtf
 modules.txt
 *.ipynb
+/poetry.lock
+/pyproject.toml
