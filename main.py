@@ -6,8 +6,6 @@ from multiprocessing import freeze_support
 if __name__ == "__main__":
     import datetime
     import math, os, re, code
-    import readline
-    import rlcompleter
 
     os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
     freeze_support()
@@ -18,7 +16,6 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import seaborn as sns
     from datetime import datetime
-    import pyreadline as prl
 
     from virtualcolumns import *
     from helperfunc import *
