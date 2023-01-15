@@ -1,10 +1,12 @@
 import kivy.app
 import vaex as vx
+from vaex.hdf5.dataset import Hdf5MemoryMapped
 from datetime import datetime
 import os, re, code
 from collections import Counter
 import pandas as pd
 import matplotlib.pyplot as plt
+plt.switch_backend('agg')
 import seaborn as sns
 import numpy as np
 from nltk import word_tokenize
