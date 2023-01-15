@@ -235,7 +235,7 @@ class RootWindow(App):
             statscreen.handle_keyboard(window, key, scancode, codepoint, modifier, keyname)
         elif all(m in modifier for m in ['ctrl', 'alt']) and codepoint == 'm':
             modlist=open('modules.txt','w')
-            print(json.dumps(list(sys.modules.keys())),file=modlist)
+            print(json.dumps(sorted(list(sys.modules.keys())), indent=4),file=modlist)
             modlist.close()
             print(json.dumps(list(sys.modules.keys())))
         elif (len(modifier) == 0) and ( keyname in self.navkeys):
@@ -483,6 +483,7 @@ class RootWindow(App):
         self.settings_cls=SettingsWithSidebar
         self._vc=dict(self.config.items('style'))
         self._vr = dict(self.config.items('main'))
+        self.icon='resources/vaerity256x256.ico'
 
         # All Window manipulation is done before loading images/layouts
         # so that sizing works properly
