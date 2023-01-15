@@ -2,6 +2,7 @@
 
 from kivy_deps import sdl2, glew
 import pkg_resources
+import vaex
 
 # Helper function to make iter_entry_points work e.g. for vaex
 # copied and modified from https://github.com/pyinstaller/pyinstaller/issues/3050
@@ -57,11 +58,23 @@ if ep_packages:
     return list(hiddenimports), runtime_hooks
 
 # List of packages that should have their "Distutils entrypoints" included.
-ep_packages = ["vaex.memory.tracker", 'vaex.dataset.opener']
+ep_packages = ["vaex.memory.tracker", 'vaex.dataset.opener', 'vaex.task.checker', 'vaex.file.scheme']
 
 hiddenimports, runtime_hooks = prepare_entrypoints(ep_packages)
 hiddenimports.append('frozendict')
 hiddenimports.append('vaex.viz')
+hiddenimports.append('vaex.hdf5')
+hiddenimports.append('vaex.file')
+hiddenimports.append('vaex.dataset')
+hiddenimports.append('vaex.hdf5')
+hiddenimports.append('vaex.hdf5.dataset')
+hiddenimports.append('vaex.file.column')
+hiddenimports.append('pyarrow._csv')
+hiddenimports.append('pyarrow._dataset')
+hiddenimports.append('pyarrow.hdfs')
+hiddenimports.append('angle')
+hiddenimports.append('vaex.dataset_mmap')
+hiddenimports.append('vaex.csv')
 hiddenimports.extend(['win32file','win32timezone'])
 block_cipher = None
 
@@ -118,4 +131,5 @@ coll = COLLECT(
     upx=False,
     upx_exclude=[],
     name='vaerity',
+    icon='C:\\Users\\matth\\PycharmProjects\\DAP1\\resources\\vaerity256x256.ico'
 )
