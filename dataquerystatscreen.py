@@ -84,7 +84,7 @@ class DataQueryStatScreen(Screen):
     currapp = None
     current_figure = NumericProperty(0)
     current_axis = NumericProperty(0)
-
+    argument: str = ''
 
     def scroll_to_current_graph(self):
         currfig: plt.Figure = self.figs[self.current_figure]
@@ -176,6 +176,32 @@ class DataQueryStatScreen(Screen):
             graphnum = int(keyname)
             statscreen.current_axis = graphnum
             statscreen.update_graphinfo()
+        elif (keyname in '0123456789.-') and (len(modifier) == 0):
+            self.argument += keyname
+            self.update_graphinfo()
+        elif (keyname == 'c') and ('ctrl' in modifier):
+            self.argument=''
+            self.update_graphinfo()
+        elif (keyname == 'l') and ('ctrl' in modifier):
+            ax.set_xlim(xmin=float(self.argument))
+            self._sv.children[0].draw()
+            self.argument = ''
+            self.update_graphinfo()
+        elif (keyname == 'r') and ('ctrl' in modifier):
+            ax.set_xlim(xmax=float(self.argument))
+            self._sv.children[0].draw()
+            self.argument = ''
+            self.update_graphinfo()
+        elif (keyname == 'u') and ('ctrl' in modifier):
+            ax.set_ylim(ymax=float(self.argument))
+            self._sv.children[0].draw()
+            self.argument = ''
+            self.update_graphinfo()
+        elif (keyname == 'd') and ('ctrl' in modifier):
+            ax.set_ylim(ymin=float(self.argument))
+            self._sv.children[0].draw()
+            self.argument = ''
+            self.update_graphinfo()
         elif (keyname == 'f') and ('ctrl' in modifier):
             self.scroll_to_current_graph()
         elif (keyname == 'e') and ('ctrl' in modifier):
@@ -268,7 +294,7 @@ class DataQueryStatScreen(Screen):
 
         self.ids['graphinfo'].text = f"""
 Figure {self.current_figure+1} selected    Graph {self.current_axis} selected
-X bounds: {xmin}, {xmax} ([ref=xreset]Reset[/ref])     Y Bounds: {ymin}, {ymax} ([ref=yreset]Reset[/ref])
+X bounds: {xmin:.3f}, {xmax:.3f} ([ref=xreset]Reset[/ref])     Y Bounds: {ymin:.3f}, {ymax:.3f} ([ref=yreset]Reset[/ref])   Arg {self.argument}
 X label: {ax.get_xlabel()}        Y label: {ax.get_ylabel()}
 """
 
@@ -412,7 +438,7 @@ X label: {ax.get_xlabel()}        Y label: {ax.get_ylabel()}
 
         spinner4=Spinner(size_hint=(0.2,None), height=50)
         spinner4.bind(text = self.select_graph)
-        spinner4.pos_hint = {'x': 0.6, 'top': 1}
+        spinner4.pos_hint = {'x': 0.7, 'top': 1}
         self.ids['graphspinner']=spinner4
 
         vbox2.add_widget(btn1)
