@@ -483,7 +483,8 @@ class RootWindow(App):
         self.settings_cls=SettingsWithSidebar
         self._vc=dict(self.config.items('style'))
         self._vr = dict(self.config.items('main'))
-        self.icon='resources/vaerity256x256.ico'
+        resourcesdir=os.path.join(os.path.dirname(__file__),'resources')
+        self.icon=os.path.join(resourcesdir,'vaerity256x256.ico')
 
         # All Window manipulation is done before loading images/layouts
         # so that sizing works properly
