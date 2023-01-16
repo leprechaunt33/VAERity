@@ -62,6 +62,9 @@ class RegexTextField(BoxLayout):
         else:
             return None
 
+    def selection(self):
+        return self.tbox.text
+
     def update_lrect(self, *args):
         if hasattr(self,'_minrect'):
             self._minrect.pos=(self.tbox.pos[0]+3,self.tbox.pos[1]+self.tbox.size[1]-self._mintext.size[1])
