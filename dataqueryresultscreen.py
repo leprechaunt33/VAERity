@@ -9,6 +9,7 @@ import datetime as dt
 import inscriptis
 import klembord
 import matplotlib.pyplot as plt
+plt.switch_backend('agg')
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -87,23 +88,23 @@ class DataQueryResultScreen(Screen):
                      },
                     {'type': 'tabgroup', 'splitter': None, 'content': [
                         {'header': 'Symptom Text', 'content': [
-                            {'textinput': True, 'formula': 'fm:SYMPTOM_TEXT', 'id': 'symptomtext'}
+                            {'textinput': True, 'id': 'symptomtext', 'formula': 'textinput_manage', 'resolver': 'self'}
                         ]
                          },
                         {'header': 'Lab Data', 'content': [
-                            {'textinput': True, 'formula': 'fm:LAB_DATA', 'id': 'labdata'}
+                            {'textinput': True, 'id': 'labdata', 'formula': 'textinput_manage', 'resolver': 'self'}
                         ]
                          },
                         {'header': 'Medications', 'content': [
-                            {'textinput': True, 'formula': 'fm:OTHER_MEDS', 'id': 'medications'}
+                            {'textinput': True, 'id': 'medications', 'formula': 'textinput_manage', 'resolver': 'self'}
                         ]
                          },
                         {'header': 'Allergies', 'content': [
-                            {'textinput': True, 'formula': 'fm:ALLERGIES', 'id': 'allergies'}
+                            {'textinput': True, 'id': 'allergies', 'formula': 'textinput_manage', 'resolver': 'self'}
                         ]
                          },
                         {'header': 'History', 'content': [
-                            {'textinput': True, 'formula': 'fm:HISTORY', 'id': 'history'}
+                            {'textinput': True, 'id': 'history', 'formula': 'textinput_manage', 'resolver': 'self'}
                         ]
                          },
                         {'header': 'Current', 'content': [
@@ -112,6 +113,19 @@ class DataQueryResultScreen(Screen):
                          }
                     ]}
                     ]
+
+    def textinput_manage(self,r, f, caller):
+
+        if f == 'symptomtext':
+            return f"=== {len(r.SYMPTOM_TEXT or '')} characters ===\n{self.formatmissing(r.SYMPTOM_TEXT)}"
+        elif f == 'labdata':
+            return f"=== {len(r.LAB_DATA or '')} characters ===\n{self.formatmissing(r.LAB_DATA)}"
+        elif f == 'medications':
+            return f"=== {len(r.OTHER_MEDS or '')} characters ===\n{self.formatmissing(r.OTHER_MEDS)}"
+        elif f == 'history':
+            return f"=== {len(r.HISTORY or '')} characters ===\n{self.formatmissing(r.HISTORY)}"
+        elif f == 'allergies':
+            return f"=== {len(r.ALLERGIES or '')} characters ===\n{self.formatmissing(r.ALLERGIES)}"
 
     def stylemissing(self,value,prefix, prefix2):
         return f"""
@@ -490,8 +504,8 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
             subhead=f"{subhead}Vaccinations"
 
         if dq.ids['STATE'].text != '':
-            if dq.ids['VAX_LOT'].text != '':
-                subhead = f"{subhead} in batch {dq.ids['VAX_LOT'].text}, {dq.ids['STATE']} only"
+            if dq.ids['VAX_LOT'].selection() != '':
+                subhead = f"{subhead} in batch {dq.ids['VAX_LOT'].selection()}, {dq.ids['STATE'].text} only"
             else:
                 subhead = f"{subhead} for {dq.ids['STATE'].text}"
 
@@ -708,16 +722,42 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
 
         ax3.set_xlabel("Age at vaccination")
 
-        fig2 = plt.figure(figsize=(25, 25), dpi=100)
-        gs2 = fig2.add_gridspec(4, 1)
+        fig2 = plt.figure(figsize=(15, 15), dpi=100)
+        gs2 = fig2.add_gridspec(7, 7)
         ts=[]
-        ts.append(fig2.add_subplot(gs2[0]))
-        ts.append(fig2.add_subplot(gs2[1]))
-        ts.append(fig2.add_subplot(gs2[2]))
-        ts.append(fig2.add_subplot(gs2[3]))
+        ts.append(fig2.add_subplot(gs2[2:5,2:5]))
+        ts.append(fig2.add_subplot(gs2[0:2,0:7]))
+        ts.append(fig2.add_subplot(gs2[2:5,0:2]))
+        ts.append(fig2.add_subplot(gs2[2:5,5:7]))
+        ts.append(fig2.add_subplot(gs2[5:7, 0:7]))
 
+        out['lensym']= out['SYMPTOM_TEXT'].str.len()
+        out['lenlab']= out['LAB_DATA'].str.len()
+        out['lenhist'] = out['HISTORY'].str.len()
+        out['lenmed'] = out['OTHER_MEDS'].str.len()
         tsindex=0
         xdata.append([])
+        plt.tight_layout(pad=5.0)
+
+        colors=sns.color_palette("muted",10)
+        print(out['lensym'].tolist())
+        sns.histplot(
+            data=out, x="lensym", ax=ts[tsindex], alpha=0.5, color=colors[0], bins=640, binrange=[0,31999], label="Symptom text")
+        sns.histplot(
+            data=out, x="lenlab", ax=ts[tsindex], alpha=0.5, color=colors[1], bins=640, binrange=[0,31999], label="Lab data")
+
+        sns.histplot(
+            data=out, x="lenhist", ax=ts[tsindex], alpha=0.5, color=colors[2], bins=640, binrange=[0,31999], label="Medical history")
+
+        sns.histplot(
+            data=out, x="lenmed", ax=ts[tsindex], alpha=0.5, color=colors[3], bins=640, binrange=[0,31999], label="Other meds")
+
+        ts[tsindex].set_xlabel("Length of corpus")
+        ts[tsindex].set_ylabel("Number of reports")
+        ts[tsindex].legend()
+
+        xdata[1].append(range(0,int(out['lensym'].max()), 10))
+        tsindex += 1
 
         dq=self.currapp.manager.get_screen('dataqueryscreen')
         if (len(BATCHES) == 1) or (dq.ids['VAX_LOT'].tbox.text != ''):
@@ -731,14 +771,16 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
             ts[tsindex].stackplot(pivot.index, *seriez, labels=unique_axes)
 
             ts[tsindex].set_title("Reports for batch by time")
+            ts[tsindex].set_xlabel("Week")
+            ts[tsindex].set_ylabel("Number of reports")
+            ts[tsindex].legend()
             xmin=gby['weekdate'].min()
             xmax=gby['weekdate'].max()
             ts[tsindex].set_xlim(left=xmin, right=xmax)
             xdata[1].append(pivot.index)
 
             tsindex += 1
-
-        if (len(STATES) == 1) or (dq.ids['STATE'].text != ''):
+        elif (len(STATES) == 1) or (dq.ids['STATE'].text != ''):
             gby = self._ds.value_counts(['weekdate', 'STATE'], dropna=False).reset_index(name='count')
             pivot = gby.pivot_table(index='weekdate', columns=['STATE'], values='count', dropna=False)
             pivot.fillna(value=0, inplace=True)
@@ -752,13 +794,52 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
             xmax=gby['weekdate'].max()
             ts[tsindex].set_xlim(left=xmin, right=xmax)
             ts[tsindex].set_title("Reports per state by time")
+            ts[tsindex].set_xlabel("Week")
+            ts[tsindex].set_ylabel("Number of reports")
+            ts[tsindex].legend()
             xdata[1].append(pivot.index)
 
             tsindex += 1
+        else:
+            gby = self._ds.value_counts(['weekdate'], dropna=False).reset_index(name='count')
+            gby.fillna(value=0, inplace=True)
 
-        gby=self._ds.value_counts(['weekdate','STATE'], dropna=False).reset_index(name='count')
-        pivot=gby.pivot_table(index='weekdate',columns=['STATE'], values='count', dropna=False)
-        sns.heatmap(pivot, ax=ts[tsindex])
+            sns.barplot(data=gby, x='weekdate',y='count', ax=ts[tsindex],
+                        palette="ch:s=2.9,r=0.5,h=0.8,l=0.7,d=0.2")
+            xmin=gby['weekdate'].min()
+            xmax=gby['weekdate'].max()
+            print(f"xlim is {xmin}, {xmax}, {gby['count'].max()}")
+            ts[tsindex].set_xlim(left=xmin, right=xmax)
+            ts[tsindex].set_title("Reports by time")
+            xdata[1].append(gby['weekdate'])
+
+            tsindex += 1
+
+        vcounts=out['VAX_TYPE'].value_counts(ascending=False).count()
+        if vcounts > 10:
+            vcounts=10
+
+        sns.countplot(data=out, y='VAX_TYPE', ax=ts[tsindex], palette="ch:s=2.9,r=-0.5,h=0.8,l=0.7,d=0.2",
+                      order=out['VAX_TYPE'].value_counts(ascending=False).iloc[:vcounts].index)
+        xdata[1].append(range(0,vcounts))
+        ts[tsindex].set_title("Incidents by Vaccine Type")
+        ts[tsindex].set_xlabel("Number of incidents")
+        ts[tsindex].set_ylabel("Vaccine Type")
+        tsindex += 1
+
+        dosecount=out['VAX_DOSE_SERIES'].value_counts(ascending=False).count()
+        if dosecount > 10:
+            dosecount=10
+
+        sns.countplot(data=out, y='VAX_DOSE_SERIES', ax=ts[tsindex], palette="ch:s=1.3,r=-0.4,h=0.8,l=0.7,d=0.2",
+                      order=out['VAX_DOSE_SERIES'].value_counts(ascending=False).iloc[:dosecount].index)
+        xdata[1].append(range(0,dosecount))
+        ts[tsindex].set_title("Incidents by Dose Number")
+        ts[tsindex].set_xlabel("Number of incidents")
+        ts[tsindex].set_ylabel("Dose number")
+        tsindex += 1
+
+        #sns.heatmap(pivot, ax=ts[tsindex])
         statusupdate("MPL PLOT PAGE 2/2 COMPLETE",10)
         figs.append(fig2)
         self.showplot(figs, xdata)
