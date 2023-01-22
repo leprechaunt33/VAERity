@@ -175,6 +175,9 @@ class DataQueryStatScreen(Screen):
         elif (keyname in '0123456789') and ('ctrl' in modifier):
             graphnum = int(keyname)
             statscreen.current_axis = graphnum
+            if self.spinner_options is not None:
+                self.ids['graphspinner'].text = self.spinner_options[self.current_figure][self.current_axis]
+            self.update_graphinfo()
             statscreen.update_graphinfo()
         elif (keyname in '0123456789.-') and (len(modifier) == 0):
             self.argument += keyname
