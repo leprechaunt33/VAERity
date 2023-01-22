@@ -95,45 +95,6 @@ class DataQueryViewScreen(Screen):
             filterset = filterset.take(idx)
             end_time = time.perf_counter()
 
-        # if self.checks['emergency0'].state == 'down':
-        #     filterset=filterset.filter("ER_VISIT == 'Y'","or")
-        #     rs_stats.extend(['ER_VISIT',len(filterset)])
-        #     filterset=filterset.filter("ER_ED_VISIT == 'Y'","or")
-        #     rs_stats.extend(['ER_ED_VISIT',len(filterset)])
-        #
-        # self._statusfield.text=f"{len(filterset)} records..."
-        #
-        # if self.checks['deaths0'].state == 'down':
-        #     filterset=filterset.filter("DIED == 'Y'",'or')
-        #     rs_stats.extend(['DEATHS0',len(filterset)])
-        # elif self.checks['deaths1'].state == 'down':
-        #     filterset=filterset.filter("DIED != 'Y'",'or')
-        #     rs_stats.extend(['DEATHS1',len(filterset)])
-        #
-        # self._statusfield.text=f"{len(filterset)} records..."
-        #
-        # if self.checks['hosp0'].state == 'down':
-        #     filterset=filterset.filter("HOSPITAL == 'Y'",'or')
-        #     rs_stats.extend(['HOSP0',len(filterset)])
-        # elif self.checks['hosp1'].state == 'down':
-        #     filterset=filterset.filter("HOSPITAL != 'Y'",'or')
-        #     rs_stats.extend(['HOSP1',len(filterset)])
-        #
-        # self._statusfield.text=f"{len(filterset)} records..."
-        #
-        # if self.checks['disabled0'].state == 'down':
-        #     filterset=filterset.filter("DISABLE == 'Y'",'or')
-        #     rs_stats.extend(['DISABLED0',len(filterset)])
-        # elif self.checks['disabled1'].state == 'down':
-        #     filterset=filterset.filter("DiSABLE != 'Y'",'or')
-        #     rs_stats.extend(['DISABLED1',len(filterset)])
-        #
-        # self._statusfield.text=f"{len(filterset)} records..."
-        #
-        # if self.checks['emergency1'].state == 'down':
-        #     filterset=filterset.filter("ER_VISIT != 'Y'", 'and').filter("ER_ED_VISIT != 'Y'",'and')
-        #     rs_stats.extend(['EMERGENCY1',len(filterset)])
-
         self._statusfield.text=f"{len(filterset)} records..."
 
         fenumdays=self.ids['NUMDAYS'].filter_expression()
@@ -325,6 +286,37 @@ class DataQueryViewScreen(Screen):
             for fld in currapp.regexfields.values():
                 fld.reset_form()
 
+    def style_callback(self, key):
+        if key == 'button.background':
+            for node in self.walk():
+                if isinstance(node,ColoredButton):
+                    node.background_color = get_color_from_hex(self.currapp._vc[key])
+        elif key == 'button.textcolor':
+            for node in self.walk():
+                if isinstance(node, ColoredButton):
+                    node.color = get_color_from_hex(self.currapp._vc[key])
+        elif key == 'label.textcolor':
+            for node in self.walk():
+                if isinstance(node, ColoredLabel):
+                    node.color = get_color_from_hex(self.currapp._vc[key])
+        elif key == 'label.background':
+            for node in self.walk():
+                if isinstance(node, ColoredLabel):
+                    node.set_bgcolor(get_color_from_hex(self.currapp._vc[key]))
+        elif key == 'textbox.textcolor':
+            for node in self.walk():
+                if isinstance(node, TextInput):
+                    node.color = get_color_from_hex(self.currapp._vc[key])
+        elif key == 'textbox.background':
+            print("Updating background color")
+            for node in self.walk():
+                if isinstance(node, TextInput):
+                    node.background_color = get_color_from_hex(self.currapp._vc[key])
+        elif key == 'togglebutton.background':
+            for node in self.walk():
+                if isinstance(node,ToggleButton):
+                    node.background_color = get_color_from_hex(self.currapp._vc[key])
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.checks=dict()
@@ -410,33 +402,6 @@ class DataQueryViewScreen(Screen):
         self.lorraine.notify_downstream(self.george)
         #self.compounded.notify_downstream(self.lorraine)
         vbox.add_widget(hbox1)
-
-        # Booleans - deaths, hospitalisations, disabled and emergency room visits
-        # answers=['Yes','No',"Don't Care"]
-        # boolcolumns=['deaths','hosp','disabled','emergency']
-        # coldesc=['Deaths','Hospitalisations','Disabled','Emergency Room Visit?']
-        # for option2 in boolcolumns:
-        #     glayout = GridLayout(cols=7, size_hint_x=1, size_hint_y=None, padding=5, height=60)
-        #     hbox2 = BoxLayout(orientation='horizontal', size_hint_x=1, size_hint_y=None, padding=5, height=60)
-        #     label1 = ColoredLabel(rgba, size_hint_x=0.2, size_hint_y=None, height=50, color=textcolor,
-        #                           text=coldesc[boolcolumns.index(option2)]
-        #                           )
-        #
-        #     glayout.add_widget(label1)
-        #
-        #     for option1 in answers:
-        #         boxname=f"{option2}{answers.index(option1)}"
-        #         cbox=ToggleButton(group=option2, size_hint_y=None, height=25, size_hint_x=None, width=40,
-        #                           allow_no_selection = False, background_color=cboxcol)
-        #         if answers.index(option1) == 2:
-        #             cbox.state='down'
-        #         cblabel= Label(text=option1, size_hint_y = None, height=50, size_hint_x = 0.15, color=textcolor)
-        #         glayout.add_widget(cbox)
-        #         glayout.add_widget(cblabel)
-        #         self.checks[boxname]=cbox
-        #
-        #     #hbox2.add_widget(glayout)
-        #     vbox.add_widget(glayout)
 
         glayout = GridLayout(cols=6, size_hint_x=1, size_hint_y=None, padding=5, height=60)
 
@@ -678,6 +643,14 @@ class DataQueryViewScreen(Screen):
         btn1=ColoredButton(brgba,text="Submit Query", size_hint_y = None, height=50, color=bcolor)
         vbox.add_widget(btn1)
         btn1.bind(on_press=self.execute_query)
+        self.currapp=currapp
+        currapp.styles.register_callback(self,'button.background', self.style_callback)
+        currapp.styles.register_callback(self,'button.textcolor', self.style_callback)
+        currapp.styles.register_callback(self,'label.background', self.style_callback)
+        currapp.styles.register_callback(self,'label.textcolor', self.style_callback)
+        currapp.styles.register_callback(self,'textbox.background', self.style_callback)
+        currapp.styles.register_callback(self,'textbox.textcolor', self.style_callback)
+        currapp.styles.register_callback(self,'togglebutton.background', self.style_callback)
 
         sv=ScrollView(size_hint=(1, None), size=(Window.width, Window.height))
         sv.add_widget(vbox)
