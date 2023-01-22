@@ -41,9 +41,18 @@ class ColoredLabel(Label):
         self.bind(pos=self.update_rect, size=self.update_rect)
 
 
+    def set_bgcolor(self, bcolor):
+        self.canvas.before.clear()
+        with self.canvas.before:
+            Color(*bcolor)
+            self._rect=Rectangle(pos=self.pos, size=self.size)
+        # Note that the callback for pos and size remains set and updates self._rect
+        self.bind(pos=self.update_rect, size=self.update_rect)
+
+
     def update_rect(self, *args):
-        self._rect.pos=self.pos
-        self._rect.size=self.size
+            self._rect.pos=self.pos
+            self._rect.size=self.size
 
 class BorderBoxLayout(BoxLayout):
     def __init__(self, bcolor, **kwargs):
