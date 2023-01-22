@@ -1,5 +1,4 @@
-import math
-
+import math, re
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.label import Label
@@ -23,7 +22,9 @@ class ModularDataset:
 
     def __init__(self, origin, record_format):
         self.currapp=App.get_running_app()
+        self.stylekeys = dict()
         self.ids = dict()
+        self.labels = dict()
         self.formulas = dict()
         self.resolvers = dict()
         self.field_order=dict()
@@ -36,6 +37,41 @@ class ModularDataset:
         if isinstance(record_format, list):
             self.rf = record_format
             self.content=self.generate_content()
+
+    def set_stylekey(self, element, key):
+        if key is None:
+            return
+        if key == '':
+            return
+
+        if key not in self.stylekeys:
+            self.stylekeys[key]=[]
+            self.currapp.styles.register_callback(self, key, self.style_callback)
+
+        self.stylekeys[key].append(element)
+
+    def style_callback(self, key):
+        if key == 'textbox.background':
+            for id in self.ids.keys():
+                if isinstance(self.ids[id],TextInput):
+                    self.ids[id].background_color = get_color_from_hex(key)
+            return
+        elif key == 'textbox.textcolor':
+            for id in self.ids.keys():
+                if isinstance(self.ids[id],TextInput):
+                    self.ids[id].color = get_color_from_hex(key)
+            return
+
+        print(f"In modular dataset style callback")
+        if key in self.stylekeys:
+            for element in self.stylekeys[key]:
+                if re.fullmatch(r'^\w+\.textcolor$',key):
+                    element.color = get_color_from_hex(self.currapp._vc[key])
+                elif re.fullmatch(r'^\w+\.background$',key):
+                    if isinstance(element, ColoredLabel):
+                        element.set_bgcolor(get_color_from_hex(self.currapp._vc[key]))
+                else:
+                    print(f"Unable to match unknown key {key}")
 
     def formatmissing(self,val):
         if val is None:
@@ -217,13 +253,15 @@ class ModularDataset:
                             cell1=Label(text=item['label'], **kwa)
 
                         rc.append(cell1)
+                        self.set_stylekey(cell1, fgcolor)
+                        self.set_stylekey(cell1, bgcolor)
 
                     if sk is not None:
                         bgcolor, = stylekeys[0:1] or [None]
                         fgcolor, = stylekeys[1:2] or [None]
                     else:
-                        bgcolor, = stylekeys[4:5] or [None]
-                        fgcolor, = stylekeys[5:6] or [None]
+                        bgcolor, = stylekeys[0:1] or [None]
+                        fgcolor, = stylekeys[1:2] or [None]
 
                     kwa = item.get('kwargs', {}).copy()
                     if fgcolor is not None:
@@ -234,8 +272,13 @@ class ModularDataset:
                         cell2 = Label(text=item['label'], **kwa)
 
                     rc.append(cell2)
+                    self.set_stylekey(cell2, fgcolor)
+                    self.set_stylekey(cell2, bgcolor)
+
                     if 'id' in item:
                         self.ids[item['id']]=cell2
+                        if not 'labelonly' in item:
+                            self.labels[item['id']]=cell1
                         self.field_order[item['id']]=len(self.ids)-1
                         self.formulas[item['id']]=item.get('formula','')
                         self.resolvers[item['id']]=item.get('resolver','')
