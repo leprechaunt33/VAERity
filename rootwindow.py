@@ -22,6 +22,7 @@ from matplotlib.patches import Rectangle
 
 from configsettings import VaeritySettings
 from dataquerystatscreen import DataQueryStatScreen
+from kivystyles import KivyStyles
 
 Config.set('input', 'mouse', 'mouse,multitouch_on_demand')
 import os
@@ -203,6 +204,7 @@ class RootWindow(App):
         self.rangedfields=dict()
         self.regexfields=dict()
         self._vc = None
+        self.styles = KivyStyles()
 
         Builder.load_string(_builderstring)
 
@@ -220,6 +222,8 @@ class RootWindow(App):
         self._cse=VaeritySettings()
         self._keyboard=Window.request_keyboard(self.keyboard_closed(), self.root)
         Window.bind(on_keyboard=self.keyboard_event_loop)
+        self.styles.register_callback(self, 'button.textcolor', self.style_callback)
+        self.styles.register_callback(self, 'button.background', self.style_callback)
 
     def keyboard_closed(self, *args):
         self._keyboard=None
@@ -233,21 +237,16 @@ class RootWindow(App):
         if self.manager.current == 'statscreen':
             statscreen: DataQueryStatScreen = self.manager.get_screen('statscreen')
             statscreen.handle_keyboard(window, key, scancode, codepoint, modifier, keyname)
+        elif self.manager.current == 'resultscreen':
+            resultscreen: DataQueryResultScreen = self.manager.get_screen('resultscreen')
+            resultscreen.handle_keyboard(window, key, scancode, codepoint, modifier, keyname)
         elif all(m in modifier for m in ['ctrl', 'alt']) and codepoint == 'm':
             modlist=open('modules.txt','w')
             print(json.dumps(sorted(list(sys.modules.keys())), indent=4),file=modlist)
             modlist.close()
             print(json.dumps(list(sys.modules.keys())))
         elif (len(modifier) == 0) and ( keyname in self.navkeys):
-            if self.manager.current == 'resultscreen':
-                resultscreen: DataQueryResultScreen=self.manager.get_screen(self.manager.current)
-                focus=self.current_focus()
-                if (focus is None) or (not isinstance(focus, TextInput)):
-                    if keyname == 'left':
-                        resultscreen.navLeft()
-                    elif keyname == 'right':
-                        resultscreen.navRight()
-            elif self.manager.current == 'dataqueryscreen':
+            if self.manager.current == 'dataqueryscreen':
                 dq: DataQueryViewScreen = self.manager.get_screen(self.manager.current)
                 focus=self.current_focus()
                 if (focus is None) or (not isinstance(focus, Widget)):
@@ -429,6 +428,14 @@ class RootWindow(App):
         dq=self.manager.get_screen('dataqueryscreen')
         dq.marty.df=self.df['data']
 
+    def style_callback(self, key):
+        if key == 'button.textcolor':
+            for button in self.button_ids:
+                self.ids[button].color = get_color_from_hex(self._vc[key])
+
+        if key == 'button.background':
+            for button in self.button_ids:
+                self.ids[button].background_color = get_color_from_hex(self._vc[key])
 
     def setupdataframes(self,*args):
         self.update_status("Loading VAERSDATA dataframe")
@@ -556,6 +563,8 @@ class RootWindow(App):
             Clock.schedule_once(self.startdbimport, 2)
             Clock.schedule_interval(self.splashcarousel, 5)
         else:
+            # So FileChooserListView doesnt crash viewing the non existent folder
+            self._vr['vaersfolder'] = str(os.path.dirname(__file__))
             Clock.schedule_once(self.open_settings, 2)
         return sm
 
@@ -570,9 +579,14 @@ class RootWindow(App):
     def on_config_change(self, config, section, key, value):
         if key == 'window.clearcolor':
             Window.clearcolor=value
-
-        # TODO: on change of VAERS folder, check that it exists, and if so
-        #  call the database initialization code
+        elif  key == 'vaersfolder':
+            if os.path.exists(value):
+                self._vr = dict(self.config.items('main'))
+                Clock.schedule_once(self.startdbimport, 2)
+                Clock.schedule_interval(self.splashcarousel, 5)
+        elif section == 'style':
+            self._vc=dict(self.config.items('style'))
+            self.styles.notify_style_change(key)
 
     async def base(self):
         await self.async_run()
