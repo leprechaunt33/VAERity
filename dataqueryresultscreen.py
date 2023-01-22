@@ -133,6 +133,20 @@ class DataQueryResultScreen(Screen):
 <data value="{self.formatmissing(value)}" style="color: {self.currapp._vc[f"{prefix2}.textcolor"]}; background-color: {self.currapp._vc[f"{prefix2}.background"]};">{self.formatmissing(value)}</data></td>
 """
 
+    def handle_keyboard(self, window, key, scancode, codepoint, modifier, keyname):
+        focus = self.currapp.current_focus()
+        if (len(modifier) == 0) and (keyname in self.currapp.navkeys):
+            if (focus is None) or (not isinstance(focus, TextInput)):
+                if keyname == 'left':
+                    self.navLeft()
+                elif keyname == 'right':
+                    self.navRight()
+        elif (keyname == 'x') and all(m in modifier for m in ['ctrl', 'alt']):
+            for key in self.md.stylekeys:
+                for element in self.md.stylekeys[key]:
+                    if isinstance(element, ColoredLabel):
+                        print(f"{key}: {element.text}")
+
     def copy_to_clipboard(self,*args):
         r=self._ds.iloc[self.start_index]
         cc=self.currapp._vc['eventheader.background']
@@ -709,7 +723,7 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         sns.barplot(x=BATCHES.iloc[0:maxbatch].index, y=BATCHES.iloc[0:maxbatch].values, ax=ax8, palette=mypal)
         ax8.set_title(f"Top batches ({maxbatch} shown)")
         xdata[0].append(BATCHES.iloc[0:maxbatch].index)
-        statusupdate("MPL PLOT PAGE 1/2 COMPLETE",10)
+        statusupdate("MPL PLOT PAGE 1/2 COMPLETE",11)
 
         ax6.tick_params(axis="x", rotation=45)
         ax8.tick_params(axis="x", rotation=45)
@@ -740,7 +754,7 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         plt.tight_layout(pad=5.0)
 
         colors=sns.color_palette("muted",10)
-        print(out['lensym'].tolist())
+
         sns.histplot(
             data=out, x="lensym", ax=ts[tsindex], alpha=0.5, color=colors[0], bins=640, binrange=[0,31999], label="Symptom text")
         sns.histplot(
@@ -755,7 +769,7 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         ts[tsindex].set_xlabel("Length of corpus")
         ts[tsindex].set_ylabel("Number of reports")
         ts[tsindex].legend()
-
+        statusupdate("MPL PLOT PAGE 2/2 MULTIHIST DONE", 12)
         xdata[1].append(range(0,int(out['lensym'].max()), 10))
         tsindex += 1
 
@@ -815,6 +829,8 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
 
             tsindex += 1
 
+        statusupdate("MPL PLOT PAGE 2/2 BY TIME DONE", 13)
+
         vcounts=out['VAX_TYPE'].value_counts(ascending=False).count()
         if vcounts > 10:
             vcounts=10
@@ -840,14 +856,14 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         tsindex += 1
 
         #sns.heatmap(pivot, ax=ts[tsindex])
-        statusupdate("MPL PLOT PAGE 2/2 COMPLETE",10)
+        statusupdate("MPL PLOT PAGE 2/2 COMPLETE",20)
         figs.append(fig2)
         self.showplot(figs, xdata)
 
     def statsscreen(self, *args):
         self.idlist=sorted(self._ds['VAERS_ID'].to_list())
         threading.Thread(target=self.stats_thread).start()
-        self._popup_progress=ProgressBar(max=10)
+        self._popup_progress=ProgressBar(max=20)
         self._popup_status=Label()
         hbox1=BoxLayout(orientation='vertical')
         hbox1.add_widget(self._popup_progress)
@@ -872,11 +888,13 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
 
         btn1.bind(on_press=self.goback)
         navstrip.add_widget(btn1)
+        self.buttons['back']=btn1
 
         btn2=ColoredButton(rgba,text='Stats', color=[1,1,1,1],bold=True,size_hint=[None,None],
                                    width=75, height=30)
 
         btn2.bind(on_press=self.statsscreen)
+        self.buttons['stats']=btn2
 
         navstrip.add_widget(btn2)
 
@@ -886,6 +904,7 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         btn3.bind(on_press=self.copy_to_clipboard)
 
         navstrip.add_widget(btn3)
+        self.buttons['clipboard']=btn3
 
         lbl1=ColoredLabel(rhbg, color=rhfg)
         lbl1.text= self.record_header()
@@ -896,6 +915,7 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         butNavLeft = ColoredButton(navbg,text=' < ', color=navfg,bold=True,size_hint=[None,None],
                                    width=30, height=30)
         butNavLeft.bind(on_press=self.navLeft)
+        self.buttons['navleft']=butNavLeft
 
         navstrip.add_widget(butNavLeft)
         navIndex=TextInput(multiline=False, size_hint=[None,None], width=60, height=30, halign='center',
@@ -907,6 +927,7 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
                                   width=30, height=30)
 
         butNavRight.bind(on_press=self.navRight)
+        self.buttons['navright']=butNavRight
         navstrip.add_widget(butNavRight)
         return navstrip
 
@@ -920,209 +941,35 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
 
         return vbox1
 
-        bglabel=get_color_from_hex(self.currapp._vc['patientdata.background'])
-        pdfg=get_color_from_hex(self.currapp._vc['patientdata.textcolor'])
-        ehbg=get_color_from_hex(self.currapp._vc['eventheader.background'])
-        ehfg=get_color_from_hex(self.currapp._vc['eventheader.textcolor'])
-        vdbg=get_color_from_hex(self.currapp._vc['vaccinedata.background'])
-        vdfg=get_color_from_hex(self.currapp._vc['vaccinedata.textcolor'])
-        vhbg=get_color_from_hex(self.currapp._vc['vaccineheader.background'])
-        vhfg=get_color_from_hex(self.currapp._vc['vaccineheader.textcolor'])
-        tboxbg = get_color_from_hex(self.currapp._vc['textbox.background'])
-        tboxfg = get_color_from_hex(self.currapp._vc['textbox.textcolor'])
-
-        lbl1=ColoredLabel(bglabel, text='PATIENT DATA', bold=True, markup=True, color=pdfg, padding=[5, 5])
-
-        self.ids['patient']=lbl1
-        lbl1.bind(on_ref_press=self.narrow_state)
-        hbox1.add_widget(lbl1)
-        vbox1.add_widget(hbox1)
-        glayout=GridLayout(cols=4)
-
-        # Onset
-        lbl1=ColoredLabel(ehbg, text='Onset Date:', size_hint_y=None, color=ehfg,
-                              height=40)
-
-        glayout.add_widget(lbl1)
-
-        fld1=Label(size_hint_y=None, height=40)
-        self.ids['onset']=fld1
-        glayout.add_widget(fld1)
-
-        # Vax Date
-        lbl2 = ColoredLabel(ehbg, text='Vaccinated On:', size_hint_y=None, color=ehfg,
-                     height=40)
-
-        glayout.add_widget(lbl2)
-
-        fld2 = Label(size_hint_y=None, height=40)
-        self.ids['vaxdate'] = fld2
-        glayout.add_widget(fld2)
-
-        # NUMDAYS
-        lbl3 = ColoredLabel(ehbg, text='Days since vaccination:', size_hint_y=None, color=ehfg,
-                     height=40)
-        glayout.add_widget(lbl3)
-
-        fld3 = Label(size_hint_y=None, height=40)
-        self.ids['numdays'] = fld3
-        glayout.add_widget(fld3)
-
-        # L_THREAT
-        lbl4 = ColoredLabel(ehbg, text='Life threatening?', size_hint_y=None, color=ehfg,
-                     height=40)
-        glayout.add_widget(lbl4)
-
-        fld4 = Label(size_hint_y=None, height=40)
-        self.ids['lthreat'] = fld4
-        glayout.add_widget(fld4)
-
-        # Covers DISABLE HOSPITAL DIED ER_VISIT ER_ED_VISIT
-        lbl5 = ColoredLabel(ehbg, text='Classification:', size_hint_y=None, color=ehfg,
-                     height=40)
-        glayout.add_widget(lbl5)
-
-        fld5 = Label(size_hint_y=None, height=40)
-        self.ids['classification'] = fld5
-        glayout.add_widget(fld5)
-
-        lbl6 = ColoredLabel(ehbg, text='Hospital stay', size_hint_y=None, color=ehfg,
-                     height=40)
-        glayout.add_widget(lbl6)
-
-        fld6 = Label(size_hint_y=None, height=40)
-        self.ids['x_stay'] = fld6
-        glayout.add_widget(fld6)
-
-        splitr=Splitter(sizable_from = 'bottom')
-        splitr.add_widget(glayout)
-
-        vbox1.add_widget(splitr)
-
-        hbox1=BoxLayout(orientation='horizontal', size_hint=[1, None], height=50)
-        lbl1=ColoredLabel(vdbg, text='VACCINE DATA', size_hint_y=None, color=vdfg,
-                              height=40, bold=True)
-
-        self.ids['vaccine']=lbl1
-        hbox1.add_widget(lbl1)
-        vbox1.add_widget(hbox1)
-
-        glayout=GridLayout(cols=4)
-
-        # VAX_TYPE
-        lbl1=ColoredLabel(vhbg, text='Vaccine Type:', size_hint_y=None, color=vhfg,
-                              height=40)
-
-        glayout.add_widget(lbl1)
-
-        fld1=Label(size_hint_y=None, height=40, markup=True)
-        self.ids['vaxtype']=fld1
-        fld1.bind(on_ref_press=self.narrow_vaxtype)
-        glayout.add_widget(fld1)
-
-        # VAX_MANU
-        lbl2=ColoredLabel(vhbg, text='Vaccine Manufacturer:', size_hint_y=None, color=vhfg,
-                              height=40)
-
-        glayout.add_widget(lbl2)
-
-        fld2=Label(size_hint_y=None, height=40)
-        self.ids['vaxmanu']=fld2
-        glayout.add_widget(fld2)
-
-        # VAX_DOSE_SERIES
-        lbl3=ColoredLabel(vhbg, text='Dose Number:', size_hint_y=None, color=vhfg,
-                              height=40)
-
-        glayout.add_widget(lbl3)
-
-        fld3=Label(size_hint_y=None, height=40)
-        self.ids['vaxdose']=fld3
-        glayout.add_widget(fld3)
-
-        # VAX_LOT
-        lbl4=ColoredLabel(vhbg, text='Lot Number:', size_hint_y=None, color=vhfg,
-                              height=40)
-
-        glayout.add_widget(lbl4)
-
-        fld4=Label(size_hint_y=None, height=40, markup=True)
-        fld4.bind(on_ref_press=self.query_batch)
-        self.ids['vaxlot']=fld4
-        glayout.add_widget(fld4)
-
-        # VAX_SITE
-        lbl5=ColoredLabel(vhbg, text='Vax Site:', size_hint_y=None, color=vhfg,
-                              height=40)
-
-        glayout.add_widget(lbl5)
-
-        fld5=Label(size_hint_y=None, height=40)
-        self.ids['vaxsite']=fld5
-        glayout.add_widget(fld5)
-
-        # VAX_MANU
-        lbl6=ColoredLabel(vhbg, text='Vaccine Route:', size_hint_y=None, color=vhfg,
-                              height=40)
-
-        glayout.add_widget(lbl6)
-
-        fld6=Label(size_hint_y=None, height=40)
-        self.ids['vaxroute']=fld6
-        glayout.add_widget(fld6)
-
-        splitr=Splitter(sizable_from = 'bottom')
-        splitr.add_widget(glayout)
-
-        vbox1.add_widget(splitr)
-
-        tpanel=TabbedPanel(do_default_tab=False)
-
-        tph1=TabbedPanelHeader(text="Symptom Text")
-        tpanel.add_widget(tph1)
-        content1=TextInput(readonly=True, multiline=True, foreground_color=tboxfg, background_color=tboxbg)
-        self.ids['symptomtext']=content1
-        tph1.content=content1
-
-        tph0=TabbedPanelHeader(text="Lab Data")
-        tpanel.add_widget(tph0)
-        content0=TextInput(readonly=True, multiline=True, foreground_color=tboxfg, background_color=tboxbg)
-        self.ids['labdata']=content0
-        tph0.content=content0
-
-        tph2=TabbedPanelHeader(text="Medications")
-        tpanel.add_widget(tph2)
-        content2=TextInput(readonly=True, multiline=True, foreground_color=tboxfg, background_color=tboxbg)
-        self.ids['medications']=content2
-        tph2.content=content2
-
-        tph3=TabbedPanelHeader(text="Allergies")
-        tpanel.add_widget(tph3)
-        content3=TextInput(readonly=True, multiline=True, foreground_color=tboxfg, background_color=tboxbg)
-        self.ids['allergies']=content3
-        tph3.content=content3
-
-        tph4=TabbedPanelHeader(text="History")
-        tpanel.add_widget(tph4)
-        content4=TextInput(readonly=True, multiline=True, foreground_color=tboxfg, background_color=tboxbg)
-        self.ids['history']=content4
-        tph4.content=content4
-
-        tph5=TabbedPanelHeader(text="Current")
-        tpanel.add_widget(tph5)
-        content5=TextInput(readonly=True, multiline=True, foreground_color=tboxfg, background_color=tboxbg)
-        self.ids['current']=content5
-        tph5.content=content5
-
-        vbox1.add_widget(tpanel)
-
-        return vbox1
 
     def size_symptoms(self, instance, *args):
         self.ids['patient'].text_size=(self.currapp.root.width, 150)
 
+    def styles_callback(self, key):
+        if key == 'recordheader.textcolor':
+            self._rh.color = get_color_from_hex(self.currapp._vc[key])
+        elif key == 'recordheader.background':
+            self._rh.set_bgcolor(get_color_from_hex(self.currapp._vc[key]))
+        elif key == 'backbutton.background':
+            col=self.currapp._vc[key]
+            self.buttons['back'].background_color=col
+            self.buttons['clipboard'].background_color=col
+        elif key == 'backbutton.textcolor':
+            col=get_color_from_hex(self.currapp._vc[key])
+            self.buttons['back'].color=col
+            self.buttons['clipboard'].color=col
+        elif key == 'navbutton.textcolor':
+            col=get_color_from_hex(self.currapp._vc[key])
+            self.buttons['navleft'].color=col
+            self.buttons['navright'].color=col
+        elif key == 'navbutton.background':
+            col=get_color_from_hex(self.currapp._vc[key])
+            self.buttons['navleft'].background_color=col
+            self.buttons['navright'].background_color=col
+
     def __init__(self,**kwargs):
         super().__init__(**kwargs)
+        self.buttons = dict()
         self._polling = False
         self.currapp=App.get_running_app()
         if 'graphdata' in self.currapp.ids:
@@ -1134,3 +981,9 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         record_display=self.build_record_panel()
         vbox.add_widget(record_display)
         self.add_widget(vbox)
+        self.currapp.styles.register_callback(self, 'backbutton.textcolor', self.styles_callback)
+        self.currapp.styles.register_callback(self, 'backbutton.background', self.styles_callback)
+        self.currapp.styles.register_callback(self, 'navbutton.textcolor', self.styles_callback)
+        self.currapp.styles.register_callback(self, 'navbutton.background', self.styles_callback)
+        self.currapp.styles.register_callback(self, 'recordheader.textcolor', self.styles_callback)
+        self.currapp.styles.register_callback(self, 'recordheader.background', self.styles_callback)
