@@ -22,6 +22,8 @@ MAX_AGE=120
 TOTALBINS=int(MAX_AGE/AGE_BINS)+1
 
 def vaershandle(what: str = 'DATA', years: object = 'all') -> vx.DataFrame:
+    currapp=kivy.app.App.get_running_app()
+    dbfilepath = currapp._vr['vaersfolder']
     what = str(what).upper()
     if type(years) == str:
         if years == 'all':
