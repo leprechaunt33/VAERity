@@ -1,6 +1,7 @@
 import datetime
 import json
 import math
+import pprint
 import re
 import threading
 import time
@@ -146,6 +147,13 @@ class DataQueryResultScreen(Screen):
                 for element in self.md.stylekeys[key]:
                     if isinstance(element, ColoredLabel):
                         print(f"{key}: {element.text}")
+        elif (keyname == 'y') and all(m in modifier for m in ['ctrl', 'alt']):
+            for element in self.walk():
+                print(f"{type(element)} {element.size} {element.pos} parent {element.parent}")
+                if hasattr(element,'text'):
+                    print(element.text)
+                if hasattr(element,'color'):
+                    print(element.color)
 
     def copy_to_clipboard(self,*args):
         r=self._ds.iloc[self.start_index]
@@ -415,9 +423,10 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
 
         pt.text=f"PATIENT ({self.formatmissing(row.SEX)}, {self.age(row)}, [color=#2222FF][ref=state]{self.formatmissing(row.STATE)}[/ref][/color]), {len(syms)} symptom(s)\n{', '.join(syms)}\n"
         pt.texture_update()
-        lblheight=max(pt.texture_size[1]*1.1, 100)
+        lblheight=min(max(pt.texture_size[1]*1.1, 100),600)
         pt.text_size=(self.currapp.root.width * 0.9, lblheight)
         pt.valign='center'
+        print(f"{pt.text} {pt.width} {pt.height} {pt.text_size} {pt.texture_size}")
         return pt.text
 
 
@@ -817,15 +826,21 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         else:
             gby = self._ds.value_counts(['weekdate'], dropna=False).reset_index(name='count')
             gby.fillna(value=0, inplace=True)
+            pp = pprint.PrettyPrinter(indent=4)
+            ourdata=gby.to_dict()
+            ourx=ourdata['weekdate']
+            oury=ourdata['count']
+            oury=[oury[k] for k, v in sorted(ourx.items(), key=lambda x: x[1])]
+            ourx=[x.date() for x in sorted(ourx.values())]
 
-            sns.barplot(data=gby, x='weekdate',y='count', ax=ts[tsindex],
-                        palette="ch:s=2.9,r=0.5,h=0.8,l=0.7,d=0.2")
-            xmin=gby['weekdate'].min()
-            xmax=gby['weekdate'].max()
-            print(f"xlim is {xmin}, {xmax}, {gby['count'].max()}")
+            myax: plt.Axes = ts[tsindex]
+            myax.bar(ourx,oury)
+            xmin=min(ourx)
+            xmax=max(ourx)
+
             ts[tsindex].set_xlim(left=xmin, right=xmax)
             ts[tsindex].set_title("Reports by time")
-            xdata[1].append(gby['weekdate'])
+            xdata[1].append(ourx)
 
             tsindex += 1
 
