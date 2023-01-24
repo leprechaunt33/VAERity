@@ -56,47 +56,6 @@ class DataQueryViewScreen(Screen):
             filterset=fr
             rs_stats.extend(['FLUX',len(filterset)])
 
-        if self.ids['symptomregex'].text != '':
-            symptom =self.ids['symptomregex'].text
-            fset = currapp.df['symptoms'].filter(f"str_contains(str_lower(SYMPTOM1),'{symptom}')")
-            self._statusfield.text=f"Identifying records matching symptom regex: {len(fset)}"
-            fset = fset.filter(f"str_contains(str_lower(SYMPTOM2),'{symptom}')", 'or')
-            self._statusfield.text = f"Identifying records matching symptom regex: {len(fset)}"
-            fset = fset.filter(f"str_contains(str_lower(SYMPTOM3),'{symptom}')", 'or')
-            self._statusfield.text = f"Identifying records matching symptom regex: {len(fset)}"
-            fset = fset.filter(f"str_contains(str_lower(SYMPTOM4),'{symptom}')", 'or')
-            self._statusfield.text = f"Identifying records matching symptom regex: {len(fset)}"
-            fset = fset.filter(f"str_contains(str_lower(SYMPTOM5),'{symptom}')", 'or')
-            self._statusfield.text = f"Identifying records matching symptom regex: {len(fset)}"
-
-            reports=fset.VAERS_ID.unique()
-
-            vid = filterset.VAERS_ID.tolist()
-            s = reports[0]
-            e = reports[-1]
-            r = e - s + 1
-            b = 1 + r // 100  # ie 1 bin of 100 for 99 records
-            print(f"s={s},e={e},r={r},b={b}")
-            sets = [set() for i in range(b + 1)]
-            for id in reports:
-                sets[(id - s) // b].add(id)
-
-            start_time = time.perf_counter()
-            print('List of list enumeration...')
-            idx = []
-            for i, y in enumerate(vid):
-                try:
-                    if (y >= s) and (y <= e) and (y in sets[(y - s) // b]):
-                        idx.append(i)
-                except Exception as ex:
-                    print(f"Exception caught at {i}, {y}, {y - s}//{b}")
-
-            print("taking results...")
-            filterset = filterset.take(idx)
-            end_time = time.perf_counter()
-
-        self._statusfield.text=f"{len(filterset)} records..."
-
         fenumdays=self.ids['NUMDAYS'].filter_expression()
         fehospdays = self.ids['HOSPDAYS'].filter_expression()
         fecageyears = self.ids['CAGE_YR'].filter_expression()
@@ -188,6 +147,47 @@ class DataQueryViewScreen(Screen):
         if self.ids['STATE'].text != '':
             filterset=filterset.filter(f"str_upper(STATE)=='{str.upper(self.ids['STATE'].text)}'",'and')
             rs_stats.extend(['STATE',len(filterset)])
+
+        self._statusfield.text=f"{len(filterset)} records..."
+
+        if self.ids['symptomregex'].text != '':
+            symptom =self.ids['symptomregex'].text
+            fset = currapp.df['symptoms'].filter(f"str_contains(str_lower(SYMPTOM1),'{symptom}')")
+            self._statusfield.text=f"Identifying records matching symptom regex: {len(fset)}"
+            fset = fset.filter(f"str_contains(str_lower(SYMPTOM2),'{symptom}')", 'or')
+            self._statusfield.text = f"Identifying records matching symptom regex: {len(fset)}"
+            fset = fset.filter(f"str_contains(str_lower(SYMPTOM3),'{symptom}')", 'or')
+            self._statusfield.text = f"Identifying records matching symptom regex: {len(fset)}"
+            fset = fset.filter(f"str_contains(str_lower(SYMPTOM4),'{symptom}')", 'or')
+            self._statusfield.text = f"Identifying records matching symptom regex: {len(fset)}"
+            fset = fset.filter(f"str_contains(str_lower(SYMPTOM5),'{symptom}')", 'or')
+            self._statusfield.text = f"Identifying records matching symptom regex: {len(fset)}"
+
+            reports=sorted(fset.VAERS_ID.unique())
+
+            vid = filterset.VAERS_ID.tolist()
+            s = reports[0]
+            e = reports[-1]
+            r = e - s + 1
+            b = 1 + r // 100  # ie 1 bin of 100 for 99 records
+            print(f"s={s},e={e},r={r},b={b}")
+            sets = [set() for i in range(b + 1)]
+            for id in reports:
+                sets[(id - s) // b].add(id)
+
+            start_time = time.perf_counter()
+            print('List of list enumeration...')
+            idx = []
+            for i, y in enumerate(vid):
+                try:
+                    if (y >= s) and (y <= e) and (y in sets[(y - s) // b]):
+                        idx.append(i)
+                except Exception as ex:
+                    print(f"Exception caught at {i}, {y}, {y - s}//{b}")
+
+            print("taking results...")
+            filterset = filterset.take(idx)
+            end_time = time.perf_counter()
 
         self._statusfield.text=f"{len(filterset)} records..."
 
