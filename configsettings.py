@@ -74,7 +74,7 @@ class VaeritySettings:
          'section': 'style'
          },
         {'key': 'navbutton.textcolor',
-         'title': 'Navigation button background color',
+         'title': 'Navigation button text color',
          'desc': 'Text color of the left and right arrow buttons in the record viewer screens',
          'type': 'color',
          'section': 'style'
@@ -140,7 +140,7 @@ class VaeritySettings:
          'section': 'style'
          },
         {'key': 'vaccineheader.background',
-         'title': 'Vaccine header text color',
+         'title': 'Vaccine header background color',
          'desc': 'Background color of the labels in the vaccine table in the record viewer',
          'type': 'color',
          'section': 'style'
@@ -151,6 +151,18 @@ class VaeritySettings:
          'type': 'color',
          'section': 'style'
          },
+            {'key': 'spinner.textcolor',
+             'title': 'Spinner text color',
+             'desc': 'Foreground color of spinner options',
+             'type': 'color',
+             'section': 'style'
+             },
+            {'key': 'spinner.background',
+             'title': 'Spinner background color',
+             'desc': 'Background color of spinner options',
+             'type': 'color',
+             'section': 'style'
+             },
             {
                 'key': 'gridview.textcolor',
                 'title': 'Gridview text color',
@@ -195,7 +207,8 @@ class VaeritySettings:
                                   'vaccinedata.background': '#111133', 'vaccinedata.textcolor': '#FFFFFF',
                                   'vaccineheader.background': '#111133', 'vaccineheader.textcolor': '#FFFFFF',
                                   'gridview.background': '#092E5B', 'gridview.textcolor': '#FFFFFF',
-                                  'fluxlabel.background': '#3C79F5', 'fluxlabel.textcolor': '#2DCDDF'
+                                  'fluxlabel.background': '#3C79F5', 'fluxlabel.textcolor': '#2DCDDF',
+                                  'spinner.textcolor': '#FFFFFF', 'spinner.background': '#092E5B'
                                   }),
                        ('main', {
                            'vaersfolder': 'D:/AllVAERSDataCSVS'
