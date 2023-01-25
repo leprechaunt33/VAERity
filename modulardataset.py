@@ -54,12 +54,12 @@ class ModularDataset:
         if key == 'textbox.background':
             for id in self.ids.keys():
                 if isinstance(self.ids[id],TextInput):
-                    self.ids[id].background_color = get_color_from_hex(key)
+                    self.ids[id].background_color = get_color_from_hex(self.currapp._vc[key])
             return
         elif key == 'textbox.textcolor':
             for id in self.ids.keys():
                 if isinstance(self.ids[id],TextInput):
-                    self.ids[id].color = get_color_from_hex(key)
+                    self.ids[id].foreground_color = get_color_from_hex(self.currapp._vc[key])
             return
 
         print(f"In modular dataset style callback")
@@ -232,7 +232,7 @@ class ModularDataset:
             else:
                 # No type.  Therefore it must be a label or textarea or other
                 # supported content field
-                print(f"Hit no type, rf is {rf}")
+                #print(f"Hit no type, rf is {rf}")
                 if 'label' in item:
                     sk=item.get('stylekeys', None)
                     if sk is not None:
@@ -301,6 +301,8 @@ class ModularDataset:
                         kwa['background_color'] = bgcolor
 
                     cell1=TextInput(**kwa)
+                    self.set_stylekey(cell1, 'textbox.background')
+                    self.set_stylekey(cell1, 'textbox.textcolor')
                     rc.append(cell1)
 
                     if 'id' in item:
