@@ -1,4 +1,3 @@
-# LEFT TODO: Style spinners.
 from kivy.clock import Clock, mainthread
 from kivy.core.window import Window
 from kivy.uix.boxlayout import BoxLayout
@@ -13,7 +12,7 @@ import threading
 import time
 from kivy.utils import get_color_from_hex
 
-from dataframegridview import ColoredButton, ColoredLabel
+from dataframegridview import ColoredButton, ColoredLabel, StyledSpinnerOption
 from kivy.app import App
 import vaex as vx
 from kivy.uix.spinner import Spinner
@@ -231,12 +230,22 @@ class DataQueryViewScreen(Screen):
 
     def build_spinners(self,*args):
         myapp=App.get_running_app()
+        spinbg=myapp._vc['spinner.background']
+        spinfg = myapp._vc['spinner.textcolor']
         if not hasattr(self,'spinners'):
             self.spinners=dict()
-            self.spinners['SEX'] = Spinner(size_hint_x=0.3, size_hint_y = None, height=60)
-            self.spinners['VAX_TYPE']=Spinner(size_hint_x=0.3, size_hint_y = None, height=60)
-            self.spinners['VAX_DOSE_SERIES']=Spinner(size_hint_x=0.3, size_hint_y = None, height=60)
-            self.spinners['VAX_MANU']=Spinner(size_hint_x=0.3, size_hint_y = None, height=60)
+            self.spinners['SEX'] = Spinner(size_hint_x=0.3, size_hint_y = None, height=60,
+                                           option_cls=StyledSpinnerOption,
+                                           background_color=spinbg, color=spinfg)
+            self.spinners['VAX_TYPE']=Spinner(size_hint_x=0.3, size_hint_y = None, height=60,
+                                              option_cls=StyledSpinnerOption,
+                                              background_color=spinbg, color=spinfg)
+            self.spinners['VAX_DOSE_SERIES']=Spinner(size_hint_x=0.3, size_hint_y = None, height=60,
+                                                     option_cls=StyledSpinnerOption,
+                                                     background_color=spinbg, color=spinfg)
+            self.spinners['VAX_MANU']=Spinner(size_hint_x=0.3, size_hint_y = None, height=60,
+                                              option_cls=StyledSpinnerOption,
+                                              background_color=spinbg, color=spinfg)
             for s in self.spinners.values():
                 s.bind(text=self.spinner_on_set)
         if 'data' not in myapp.df:
@@ -288,13 +297,15 @@ class DataQueryViewScreen(Screen):
 
     def style_callback(self, key):
         if key == 'button.background':
+            bgcolor=get_color_from_hex(self.currapp._vc[key])
             for node in self.walk():
                 if isinstance(node,ColoredButton):
-                    node.background_color = get_color_from_hex(self.currapp._vc[key])
+                    node.set_bgcolor(bgcolor)
         elif key == 'button.textcolor':
+            fgcolor=get_color_from_hex(self.currapp._vc[key])
             for node in self.walk():
                 if isinstance(node, ColoredButton):
-                    node.color = get_color_from_hex(self.currapp._vc[key])
+                    node.set_fgcolor(fgcolor)
         elif key == 'label.textcolor':
             for node in self.walk():
                 if isinstance(node, ColoredLabel):
@@ -316,6 +327,17 @@ class DataQueryViewScreen(Screen):
             for node in self.walk():
                 if isinstance(node,ToggleButton):
                     node.background_color = get_color_from_hex(self.currapp._vc[key])
+        elif key == 'spinner.background':
+            # Spinners are notified of style changes elsewhere for the SpinnerOptions
+            # However we must style the closed spinners themselves directly.
+            col=get_color_from_hex(self.currapp._vc[key])
+            for node in self.spinners.values():
+                node.background_color=col
+        elif key == 'spinner.textcolor':
+            col=get_color_from_hex(self.currapp._vc[key])
+            for node in self.spinners.values():
+                node.color=col
+
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -651,6 +673,8 @@ class DataQueryViewScreen(Screen):
         currapp.styles.register_callback(self,'textbox.background', self.style_callback)
         currapp.styles.register_callback(self,'textbox.textcolor', self.style_callback)
         currapp.styles.register_callback(self,'togglebutton.background', self.style_callback)
+        currapp.styles.register_callback(self,'spinner.background', self.style_callback)
+        currapp.styles.register_callback(self,'spinner.textcolor', self.style_callback)
 
         sv=ScrollView(size_hint=(1, None), size=(Window.width, Window.height))
         sv.add_widget(vbox)
