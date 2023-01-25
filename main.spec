@@ -82,11 +82,17 @@ print(hiddenimports)
 print(runtime_hooks)
 input("Press a key to continue")
 
+datas=[
+    ('resources', 'resources'),
+    ('styles', 'styles'),
+    ('rootwindow.ini', '.')
+]
+
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=datas,
     hiddenimports=hiddenimports,
     hookspath=['.'],
     hooksconfig={},
