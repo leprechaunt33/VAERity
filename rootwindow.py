@@ -10,9 +10,14 @@ import time
 import pytz
 import kivy.uix.image
 from kivy.config import Config
+from kivy.graphics import Color, Ellipse
+from kivy.uix.colorpicker import ColorPicker
+from kivy.uix.filechooser import FileChooserListView
 from kivy.uix.image import Image
+from kivy.uix.relativelayout import RelativeLayout
 from kivy.uix.settings import SettingsWithSidebar
 from kivy.core.window import Window
+from kivy.uix.spinner import Spinner, SpinnerOption
 from kivy.uix.widget import Widget
 from kivy.utils import get_color_from_hex
 import pyautogui
@@ -49,37 +54,10 @@ from dataqueryresultscreen import DataQueryResultScreen
 from helperfunc import vaershandle
 from virtualcolumns import *
 from kivy.garden.matplotlib import FigureCanvasKivyAgg
-from dataframegridview import DataFrameGridView, ColoredButton
+from dataframegridview import DataFrameGridView, ColoredButton, ColoredLabel
 from dataqueryscreen import DataQueryViewScreen
 
 _builderstring="""
-<HeatMapScreen>:
-    BoxLayout:
-        orientation: 'vertical'
-        BoxLayout:
-            orientation: 'horizontal'
-            size_hint: None, 0.1
-            Button:
-                text: 'Go Back'
-                width: 100
-                size_hint: None, None
-                on_press:
-                    root.manager.transition.direction = 'right'
-                    root.manager.current = 'mainscreen'
-                
-            Button:
-                text: 'Save Plot'
-                width: 100
-                size_hint: None, None
-                on_press: root.save_figure()
-            Button:
-                text: 'View Raw Data'
-                width: 150
-                size_hint: None, None
-                on_press: root.popup_grid()
-        BoxLayout:
-            name: 'imglayout'
-            
 <LoadDialog>:
     BoxLayout:
         size: root.size
@@ -87,6 +65,7 @@ _builderstring="""
         orientation: "vertical"
         FileChooserListView:
             id: filechooser
+            filters: [lambda folder, filename: not (filename.endswith('.sys') or filename.endswith('.tmp'))]
 
         BoxLayout:
             size_hint_y: None
@@ -107,6 +86,7 @@ _builderstring="""
         orientation: "vertical"
         FileChooserListView:
             id: filechooser
+            filters: [lambda folder, filename: not (filename.endswith('.sys') or filename.endswith('.tmp'))]
             on_selection: text_input.text = self.selection and self.selection[0] or ''
 
         TextInput:
@@ -128,7 +108,7 @@ _builderstring="""
 """
 
 class HeatMapScreen(Screen):
-    def dismiss_popup(self):
+    def dismiss_popup(self, *args):
         if self._popup is not None:
             self._popup.dismiss()
 
@@ -145,7 +125,7 @@ class HeatMapScreen(Screen):
             except:
                 print(f"Unable to save file {file} in {path}")
 
-    def save_figure(self):
+    def save_figure(self, *args):
         content=SaveDialog(save=self.save_figure_png, cancel=self.dismiss_popup)
         self._popup = Popup(title="Save Plot", content=content,
                             size_hint=(0.9, 0.9))
@@ -162,7 +142,7 @@ class HeatMapScreen(Screen):
                             size_hint=(0.9, 0.9))
         self._popup.open()
 
-    def popup_grid(self):
+    def popup_grid(self, *args):
         scrollable=ScrollView()
         boxPop=BoxLayout(orientation='vertical')
         boxPop.size_hint_x=None
@@ -181,6 +161,31 @@ class HeatMapScreen(Screen):
         self._pgrid=Popup(title="DataFrame View",content=scrollable, size_hint=(0.9,0.9))
         self._pgrid.open()
 
+    def transition_main(self, *args):
+        self.currapp.manager.transition.direction = 'right'
+        self.currapp.manager.current = 'mainscreen'
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        vbox=BoxLayout(orientation='vertical')
+        hbox1=BoxLayout(orientation='horizontal', size_hint=(None, 0.1))
+        self.currapp=App.get_running_app()
+        bbg=get_color_from_hex(self.currapp._vc['button.background'])
+        bfg=get_color_from_hex(self.currapp._vc['button.textcolor'])
+        btn1 = ColoredButton(bbg, color=bfg, text='Go Back', size_hint=(None, None), width=100, height=50)
+        btn1.bind(on_release=self.transition_main)
+        btn2 = ColoredButton(bbg, color=bfg, text='Save Plot', size_hint=(None, None), width=100, height=50)
+        btn2.bind(on_release=self.save_figure)
+        btn3 = ColoredButton(bbg, color=bfg, text='View Raw Data', size_hint=(None, None), width=150, height=50)
+        btn3.bind(on_release=self.popup_grid)
+        hbox1.add_widget(btn1)
+        hbox1.add_widget(btn2)
+        hbox1.add_widget(btn3)
+        vbox.add_widget(hbox1)
+        hbox2=BoxLayout()
+        vbox.add_widget(hbox2)
+        self.add_widget(vbox)
+
 class LoadDialog(FloatLayout):
     load = ObjectProperty(None)
     cancel = ObjectProperty(None)
@@ -189,6 +194,28 @@ class SaveDialog(FloatLayout):
     save = ObjectProperty(None)
     text_input = ObjectProperty(None)
     cancel = ObjectProperty(None)
+
+class StyleOption(SpinnerOption):
+    def update_ellipse(self, *args):
+        self.swatch.pos=(self.pos[0]+5, self.pos[1]+2)
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        try:
+            i=int(self.text.split(':')[0])
+        except Exception as ex:
+            print(ex)
+            return
+
+        currapp=App.get_running_app()
+        settings_list = [t[1] for t in currapp._cse.settings_keys if t[0] == 'Styles'][0]
+        stylekey=settings_list[i]['key']
+        col=get_color_from_hex(currapp._vc[stylekey])
+
+        with self.canvas.after:
+            Color(*col)
+            self.swatch=Ellipse(segments=18, size=(40,40), pos=(self.pos[0]+5,self.pos[1] +2))
+        self.bind(pos=self.update_ellipse)
 
 class RootWindow(App):
     _keyboard: Keyboard = None
@@ -224,9 +251,147 @@ class RootWindow(App):
         Window.bind(on_keyboard=self.keyboard_event_loop)
         self.styles.register_callback(self, 'button.textcolor', self.style_callback)
         self.styles.register_callback(self, 'button.background', self.style_callback)
+        self.styles.register_callback(self, 'window.clearcolor', self.style_callback)
 
     def keyboard_closed(self, *args):
         self._keyboard=None
+
+    def load_style(self, *args):
+        self.dismiss_style()
+        fname = os.path.join(self.fcstyles.path, self.tbstyles.text or self.fcstyles.selection[0])
+
+        with open(fname, "r") as stylefile:
+            newstyles=json.load(stylefile)
+
+        for style in newstyles.keys():
+            self._vc[style]=newstyles[style]
+            self.styles.notify_style_change(style)
+
+    def save_style(self, *args):
+        self.stylespopup.dismiss()
+        print(f"You decided to save the style {self.tbstyles.text} in {self.fcstyles.path}")
+        fname=os.path.join(self.fcstyles.path, self.tbstyles.text)
+        try:
+            stylefile=open(fname, "w")
+            print(json.dumps(self._vc), file=stylefile)
+            stylefile.close()
+        except Exception as ex:
+            print(f"Unable to save file: {ex}")
+
+    def dismiss_style(self, *args):
+        self.stylespopup.dismiss()
+
+    def update_tbstyles(self, *args):
+        if self.fcstyles.selection is not None:
+            self.tbstyles.text=self.fcstyles.selection[0]
+        else:
+            print("I'm here... but there's no selection?")
+
+    def pop_styles(self, *args):
+        popcontent = RelativeLayout(size_hint=(1, 1))
+        lbl1 = ColoredLabel(get_color_from_hex(self._vc['label.background']),
+                            color=get_color_from_hex(self._vc['label.textcolor']),
+                            text="Select [b]Load[/b] to load a style or [b]Save[/b] to save the curreht style.",
+                            markup=True)
+        lbl1.pos_hint={'top': 1, 'left': 0}
+        lbl1.size_hint=(1,None)
+        lbl1.height=50
+        popcontent.add_widget(lbl1)
+        dirname=os.path.join(os.path.dirname(__file__), 'styles')
+        if not os.path.exists(dirname):
+            try:
+                os.mkdir(dirname)
+            except Exception as ex:
+                dirname=os.path.dirname(__file__)
+
+        fc=FileChooserListView(path=dirname, filters=['*.style'], size_hint=(1,0.7))
+        fc.pos_hint = {'top': 0.9, 'x': 0}
+
+        popcontent.add_widget(fc)
+
+        bbg=get_color_from_hex(self._vc['button.background'])
+        bfg = get_color_from_hex(self._vc['button.textcolor'])
+        tbg = get_color_from_hex(self._vc['textbox.background'])
+        tfg = get_color_from_hex(self._vc['textbox.textcolor'])
+        self.tbstyles=TextInput(multiline=False, size_hint=(1, None),
+                                height=40, background_color = tbg, foreground_color = tfg)
+        self.tbstyles.pos_hint={'x': 0, 'y': 55/(0.8*Window.height)}
+        popcontent.add_widget(self.tbstyles)
+        fc.bind(selection=self.update_tbstyles)
+
+        btn1=ColoredButton(bbg, color=bfg, text='Load', size_hint=(None,None), width=75, height=50)
+        btn1.bind(on_release=self.load_style)
+        btn1.pos_hint={'y': 0, 'x': 0}
+        btn2=ColoredButton(bbg, color=bfg, text='Save', size_hint=(None,None), width=75, height=50)
+        btn2.bind(on_release=self.save_style)
+        btn2.pos_hint={'y': 0, 'x': 0.2}
+        self.fcstyles = fc
+
+        btn3=ColoredButton(bbg, color=bfg, text='Cancel', size_hint=(None,None), width=75, height=50)
+        btn3.bind(on_release=self.dismiss_style)
+        btn3.pos_hint={'y': 0, 'x': 0.4}
+        popcontent.add_widget(btn1)
+        popcontent.add_widget(btn2)
+        popcontent.add_widget(btn3)
+        self.stylespopup=Popup(title="Styles", size_hint=(0.8, 0.8), content=popcontent)
+        self.stylespopup.open()
+
+    def update_picker(self, *args):
+        if self.stylespinner.text == '':
+            return
+
+        try:
+            i=int(self.stylespinner.text.split(':')[0])
+        except Exception as ex:
+            print(ex)
+            return
+
+        settings_list = [t[1] for t in self._cse.settings_keys if t[0] == 'Styles'][0]
+        stylekey=settings_list[i]['key']
+        col=get_color_from_hex(self._vc[stylekey])
+        self.stylecp.color = col
+
+    def update_stylekey(self, *args):
+        if self.stylespinner.text == '':
+            return
+
+        try:
+            i=int(self.stylespinner.text.split(':')[0])
+        except Exception as ex:
+            print(ex)
+            return
+        settings_list = [t[1] for t in self._cse.settings_keys if t[0] == 'Styles'][0]
+        stylekey=settings_list[i]['key']
+        self._vc[stylekey]=self.stylecp.hex_color
+        self.styles.notify_style_change(stylekey)
+
+
+    def pop_edit_styles(self, *args):
+        popcontent=RelativeLayout(size_hint=(1,1))
+        spinner1 = Spinner(size_hint = (1, 0.1), option_cls=StyleOption)
+        settings_list = [t[1] for t in self._cse.settings_keys if t[0] == 'Styles'][0]
+        styleopt=[f"{i}: {s['title'] }" for i, s in enumerate(settings_list) if s['type'] != 'title']
+        spinner1.values=styleopt
+        spinner1.pos_hint={'top': 1, 'x': 0}
+        colorpicker=ColorPicker(size_hint=(1,0.8))
+        colorpicker.pos_hint={'top': 0.9, 'x': 0}
+        bbg=get_color_from_hex(self._vc['button.background'])
+        bfg = get_color_from_hex(self._vc['button.textcolor'])
+        btn1=ColoredButton(bbg, color=bfg, text="Update")
+        btn1.size_hint=(1,None)
+        btn1.height=50
+        btn1.pos_hint={'y': 0, 'x': 0}
+        spinner1.bind(text=self.update_picker)
+        btn1.bind(on_release=self.update_stylekey)
+
+        self.stylecp = colorpicker
+        self.stylespinner = spinner1
+
+        popcontent.add_widget(spinner1)
+        popcontent.add_widget(colorpicker)
+        popcontent.add_widget(btn1)
+        self.editstylepop=Popup(size_hint=(0.6, 0.6), title='Edit existing style', content=popcontent)
+        self.editstylepop.open()
 
     def keyboard_event_loop(self, window, key, scancode, codepoint, modifier):
         if self._keyboard is not None:
@@ -234,30 +399,37 @@ class RootWindow(App):
         else:
             keyname=''
 
-        if self.manager.current == 'statscreen':
+        # Keys that should operate on all screens first, then dispatch to
+        # specific classes
+        if all(m in modifier for m in ['ctrl', 'alt']) and (keyname == 's'):
+                self.pop_styles()
+        elif all(m in modifier for m in ['ctrl', 'alt']) and (keyname == 'c'):
+            self.pop_edit_styles()
+        elif all(m in modifier for m in ['ctrl', 'alt']) and codepoint == 'm':
+            modlist = open('modules.txt', 'w')
+            print(json.dumps(sorted(list(sys.modules.keys())), indent=4), file=modlist)
+            modlist.close()
+            print(json.dumps(list(sys.modules.keys())))
+        elif self.manager.current == 'statscreen':
             statscreen: DataQueryStatScreen = self.manager.get_screen('statscreen')
             statscreen.handle_keyboard(window, key, scancode, codepoint, modifier, keyname)
         elif self.manager.current == 'resultscreen':
             resultscreen: DataQueryResultScreen = self.manager.get_screen('resultscreen')
             resultscreen.handle_keyboard(window, key, scancode, codepoint, modifier, keyname)
-        elif all(m in modifier for m in ['ctrl', 'alt']) and codepoint == 'm':
-            modlist=open('modules.txt','w')
-            print(json.dumps(sorted(list(sys.modules.keys())), indent=4),file=modlist)
-            modlist.close()
-            print(json.dumps(list(sys.modules.keys())))
-        elif (len(modifier) == 0) and ( keyname in self.navkeys):
+        elif (len(modifier) == 0) and (keyname in self.navkeys):
+            # Nav keys goes last until it is folded into the specific classes
             if self.manager.current == 'dataqueryscreen':
                 dq: DataQueryViewScreen = self.manager.get_screen(self.manager.current)
-                focus=self.current_focus()
+                focus = self.current_focus()
                 if (focus is None) or (not isinstance(focus, Widget)):
                     if keyname == 'down':
-                        dq._sv.scroll_y = max(dq._sv.scroll_y - 1/100,0.)
+                        dq._sv.scroll_y = max(dq._sv.scroll_y - 1 / 100, 0.)
                     elif keyname == 'up':
                         dq._sv.scroll_y = min(dq._sv.scroll_y + 1 / 100, 1.)
                     elif keyname == 'pageup':
                         dq._sv.scroll_y = min(dq._sv.scroll_y + 1 / 10, 1.)
                     elif keyname == 'pagedown':
-                        dq._sv.scroll_y = max(dq._sv.scroll_y - 1/10,0.)
+                        dq._sv.scroll_y = max(dq._sv.scroll_y - 1 / 10, 0.)
 
                 else:
                     print(focus)
@@ -431,11 +603,16 @@ class RootWindow(App):
     def style_callback(self, key):
         if key == 'button.textcolor':
             for button in self.button_ids:
-                self.ids[button].color = get_color_from_hex(self._vc[key])
+                fgcolor=get_color_from_hex(self._vc[key])
+                self.ids[button].set_fgcolor(fgcolor)
 
         if key == 'button.background':
+            bgcolor=get_color_from_hex(self._vc[key])
             for button in self.button_ids:
-                self.ids[button].background_color = get_color_from_hex(self._vc[key])
+                self.ids[button].set_bgcolor(bgcolor)
+
+        if key == 'window.clearcolor':
+            Window.clearcolor = self._vc[key]
 
     def setupdataframes(self,*args):
         self.update_status("Loading VAERSDATA dataframe")
@@ -523,7 +700,7 @@ class RootWindow(App):
         textcolor=get_color_from_hex(textcolor)
 
         if 'button.background' in self._vc:
-            bgcolor=self._vc['button.background']
+            bgcolor=get_color_from_hex(self._vc['button.background'])
         else:
             bgcolor=self._cse.settings_defaults[0,1]['button.background']
 
