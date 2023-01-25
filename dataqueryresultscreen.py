@@ -966,21 +966,21 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         elif key == 'recordheader.background':
             self._rh.set_bgcolor(get_color_from_hex(self.currapp._vc[key]))
         elif key == 'backbutton.background':
-            col=self.currapp._vc[key]
-            self.buttons['back'].background_color=col
-            self.buttons['clipboard'].background_color=col
+            col=get_color_from_hex(self.currapp._vc[key])
+            self.buttons['back'].set_bgcolor(col)
+            self.buttons['clipboard'].set_bgcolor(col)
         elif key == 'backbutton.textcolor':
             col=get_color_from_hex(self.currapp._vc[key])
-            self.buttons['back'].color=col
-            self.buttons['clipboard'].color=col
+            self.buttons['back'].set_fgcolor(col)
+            self.buttons['clipboard'].set_fgcolor(col)
         elif key == 'navbutton.textcolor':
             col=get_color_from_hex(self.currapp._vc[key])
-            self.buttons['navleft'].color=col
-            self.buttons['navright'].color=col
+            self.buttons['navleft'].set_fgcolor(col)
+            self.buttons['navright'].set_fgcolor(col)
         elif key == 'navbutton.background':
             col=get_color_from_hex(self.currapp._vc[key])
-            self.buttons['navleft'].background_color=col
-            self.buttons['navright'].background_color=col
+            self.buttons['navleft'].set_bgcolor(col)
+            self.buttons['navright'].set_bgcolor(col)
 
     def __init__(self,**kwargs):
         super().__init__(**kwargs)
