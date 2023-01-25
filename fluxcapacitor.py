@@ -180,13 +180,12 @@ class FluxCapacitor(RelativeLayout):
 
     def toggleop(self, *args):
         self.df.drop_filter(inplace=True)
-        print(f'At the toggle point boolop is {self.boolop}')
+
         if self.boolop == 'and':
             self.boolop='or'
         else:
             self.boolop='and'
 
-        print(f"boolop now {self.boolop}")
         if self.boolop == 'and':
             markup = "([color=#5BC0F8][u][ref=boolopchange]A[/ref][/u][/color)"
         else:
@@ -442,11 +441,8 @@ class FluxCapacitor(RelativeLayout):
         self.bind(pos=self.update_flux, size=self.update_flux)
 
     def update_flux(self, *args):
-        print(f"In update_flux: {self.plutonium.texture_size} is the texture size")
-
         self.plutonium.pos = (self.radius-self.plutonium.texture_size[0]/2,
                               self.radius-self.plutonium.texture_size[1]/2)
-
 
         self.position_checks()
 
@@ -456,17 +452,6 @@ class FluxCapacitor(RelativeLayout):
         self.rectdog.size=self.maddog.size
         self.rectdestiny.size=self.density.size
         self.rectcalvin.size=self.calvinklein.size
-
-        print(f"plutonium @ {self.plutonium.pos}")
-        for check in self.checks:
-            print(f"check @ {check.pos}")
-
-        print(f"maddog @ {self.maddog.pos}")
-        print(f"density @ {self.density.pos}")
-        print(f"calvinklein @ {self.calvinklein.pos}")
-
-        #self.wires[2].points[0:4]=(self.center_x, self.center_y, self.center_x,
-        #                           self.center_y - self.radius * 0.8)
 
         uwa=180-self.upper_wire_angle
         self.wires[1].points[0:4]=(self.center_x, self.center_y,
@@ -548,9 +533,9 @@ class FluxCapacitor(RelativeLayout):
                 filterset = self.df
 
             fe=self.filter_expression()
-            print(f"Upstream returned a filterset of {len(filterset)} records.")
+            print(f"Upstream returned a filterset of {len(filterset)} records.") if self.debug else None
             if fe is None:
-                print("Returning entire filterset unchanged")
+                print("Returning entire filterset unchanged") if self.debug else None
                 return filterset
             else:
                 print(f"returning op {self.boolop} fe {fe} ")
@@ -580,6 +565,10 @@ class FluxCapacitor(RelativeLayout):
         # Save arguments before building our fusion reactor.  We'll need those
         # for later.
         self.kwargs={**kwargs}
+        if 'debug' in self.kwargs:
+            self.debug = self.kwargs['debug']
+        else:
+            self.debug = False
         self.boolop='and'
         self.build_fusion_reactor()
 
@@ -592,7 +581,7 @@ class FluxCapacitor(RelativeLayout):
             fr=self.filter_result()
             if fr is not None:
                 result2=len(fr)
-                print(f"result2 is {result2}")
+                print(f"result2 is {result2}") if self.debug else None
                 self.plutonium.text=str(result2)
             else:
                 self.plutonium.text = str(len(self.df))
@@ -602,7 +591,7 @@ class FluxCapacitor(RelativeLayout):
             print(tb)
 
     def on_df(self, instance, value):
-        print("df update triggered")
+        print("df update triggered") if self.debug else None
         self.check_recordset()
         self.checks[0].bind(state=self.on_state)
         self.checks[1].bind(state=self.on_state)
@@ -611,7 +600,7 @@ class FluxCapacitor(RelativeLayout):
             self.backToTheFuture.notify_upstream(self.df.drop_filter(), self.filter_expression(), self)
 
     def notify_downstream(self, upstreamflux):
-        print("Setting forward branch")
+        print("Setting forward branch") if self.debug else None
         upstreamflux.backToTheFuture = self
 
     def notify_upstream(self, dataframe, filter_expr, caller):
@@ -628,7 +617,7 @@ class FluxCapacitor(RelativeLayout):
                 self.backToTheFuture.notify_upstream(self.df, self.filter_expression(), self)
 
         elif filter_expr is not None:
-            print(f"Received downstream notification filter {filter_expr}")
+            print(f"Received downstream notification filter {filter_expr}") if self.debug else None
             # For now we do nothing with the expression as it can be
             # returned through
 
@@ -640,11 +629,10 @@ class FluxCapacitor(RelativeLayout):
         self.backToTheFuture.notify_upstream(self.df,self.filter_expression(),self)
 
     def on_state(self, *args):
-        print(f"on_state() entered")
         if self.df is not None:
-            print(f"name is {self.fluxtext}, len df is {len(self.df)}")
+            print(f"name is {self.fluxtext}, len df is {len(self.df)}") if self.debug else None
         else:
-            print("No dataframe yet")
+            print("No dataframe yet") if self.debug else None
             return
         if self.checks[0].state == 'down':
             self.chkindex=0
@@ -655,7 +643,7 @@ class FluxCapacitor(RelativeLayout):
         else:
             return
 
-        print(f"chkindex is {self.chkindex}")
+        print(f"chkindex is {self.chkindex}") if self.debug else None
         fr=self.filter_result()
         if fr is None:
             try:
@@ -681,7 +669,7 @@ class FluxCapacitor(RelativeLayout):
                 print(tb)
 
         if self.backToTheFuture is not None:
-            print("Notifying upstream...")
+            print("Notifying upstream...") if self.debug else None
             self.backToTheFuture.notify_upstream(self.df.drop_filter(), self.filter_expression(), self)
         else:
             print("No upstream to notify")
