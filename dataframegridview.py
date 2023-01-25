@@ -9,8 +9,8 @@ from kivy.uix.button import Button
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
-from kivy.graphics import Color, Rectangle
-from kivy.uix.spinner import Spinner
+from kivy.graphics import Color, Rectangle, RoundedRectangle, Line
+from kivy.uix.spinner import Spinner, SpinnerOption
 from kivy.uix.textinput import TextInput
 import pandas as pd
 import re
@@ -21,16 +21,46 @@ from kivy.utils import get_color_from_hex
 class ColoredButton(Button):
     def __init__(self, bcolor, **kwargs):
         super().__init__(**kwargs)
-        self.background_color=bcolor
+        self.background_color=(0,0,0,0)
+        self.background_normal=''
+        self.bgcolor=bcolor
         with self.canvas.before:
+            if 'color' in kwargs:
+                self.fgcolor = kwargs['color']
+                Color(*kwargs['color'])
+                self._line=RoundedRectangle(pos=self.pos, size=self.size)
             Color(*bcolor)
-            self._rect=Rectangle(pos=self.center, size=(self.width/2., self.height/2.))
+            self._rect=RoundedRectangle(pos=self.pos, size=(self.size[0]-1, self.size[1]-1))
         self.bind(pos=self.update_rect, size=self.update_rect)
 
+    def set_bgcolor(self, color):
+        print(f"Entered bgcolor: {color}")
+        self.bgcolor=color
+        self.canvas.before.clear()
+        with self.canvas.before:
+            if hasattr(self, 'fgcolor'):
+                Color(*self.fgcolor)
+                self._line=RoundedRectangle(pos=self.pos, size=self.size)
+            Color(*color)
+            self._rect=RoundedRectangle(pos=self.pos, size=(self.size[0]-1, self.size[1]-1))
+
+    def set_fgcolor(self, color):
+        print(f"Entered fgcolor: {color}")
+        self.canvas.before.clear()
+        self.fgcolor=color
+        with self.canvas.before:
+            Color(*self.fgcolor)
+            self._line=RoundedRectangle(pos=self.pos, size=self.size)
+            Color(*self.bgcolor)
+            self._rect=RoundedRectangle(pos=self.pos, size=(self.size[0]-1, self.size[1]-1))
 
     def update_rect(self, *args):
+        if hasattr(self,'_line'):
+            self._line.pos=self.pos
+            self._line.size=self.size
         self._rect.pos=self.pos
-        self._rect.size=self.size
+        self._rect.size=(self.size[0]-1, self.size[1]-1)
+
 
 class ColoredLabel(Label):
     def __init__(self, bcolor, **kwargs):
@@ -53,6 +83,24 @@ class ColoredLabel(Label):
     def update_rect(self, *args):
             self._rect.pos=self.pos
             self._rect.size=self.size
+
+class StyledSpinnerOption(SpinnerOption):
+    def update_background(self, key):
+        currapp = App.get_running_app()
+        self.background_color = get_color_from_hex(currapp._vc[key])
+
+    def update_textcolor(self, key):
+        currapp = App.get_running_app()
+        self.color = get_color_from_hex(currapp._vc[key])
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        currapp=App.get_running_app()
+        self.background_normal=''
+        self.background_color=get_color_from_hex(currapp._vc['spinner.background'])
+        self.color=get_color_from_hex(currapp._vc['spinner.textcolor'])
+        currapp.styles.register_callback(self, 'spinner.textcolor', self.update_textcolor)
+        currapp.styles.register_callback(self, 'spinner.background', self.update_background)
 
 class BorderBoxLayout(BoxLayout):
     def __init__(self, bcolor, **kwargs):
