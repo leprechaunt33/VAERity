@@ -1,3 +1,7 @@
+import datetime
+import re
+
+import numpy as np
 from kivy.clock import Clock, mainthread
 from kivy.core.window import Window
 from kivy.uix.boxlayout import BoxLayout
@@ -187,7 +191,27 @@ class DataQueryViewScreen(Screen):
             print("taking results...")
             filterset = filterset.take(idx)
             end_time = time.perf_counter()
+            rs_stats.extend(['SYMPTOM',len(filterset)])
 
+        self._statusfield.text=f"{len(filterset)} records..."
+
+        if self.ids['daterange'].text != '':
+            drtext=self.ids['daterange'].text
+            re_search=re.compile(r'^(\d{4})(\d{2})(\d{2})-(\d{4})(\d{2})(\d{2})$')
+            re_match=re_search.fullmatch(drtext)
+            if re_match:
+                try:
+                    startdate=np.datetime64(f"{re_match.group(1)}-{re_match.group(2)}-{re_match.group(3)}")
+                    enddate=np.datetime64(f"{re_match.group(4)}-{re_match.group(5)}-{re_match.group(6)}")
+                    filterset = filterset.filter(filterset.pdate >= startdate, 'and' )
+                    filterset = filterset.filter(filterset.pdate <= enddate, 'and' )
+                    rs_stats.extend(['DATERANGE', len(filterset)])
+                except Exception as ex:
+                    print(ex)
+            else:
+                print(f"{drtext} did not match {re_search}")
+        else:
+            print(f"daterange is {self.ids['daterange'].text}")
         self._statusfield.text=f"{len(filterset)} records..."
 
         try:
@@ -235,16 +259,16 @@ class DataQueryViewScreen(Screen):
         if not hasattr(self,'spinners'):
             self.spinners=dict()
             self.spinners['SEX'] = Spinner(size_hint_x=0.3, size_hint_y = None, height=60,
-                                           option_cls=StyledSpinnerOption,
+                                           option_cls=StyledSpinnerOption, background_normal='',
                                            background_color=spinbg, color=spinfg)
             self.spinners['VAX_TYPE']=Spinner(size_hint_x=0.3, size_hint_y = None, height=60,
-                                              option_cls=StyledSpinnerOption,
+                                              option_cls=StyledSpinnerOption, background_normal='',
                                               background_color=spinbg, color=spinfg)
             self.spinners['VAX_DOSE_SERIES']=Spinner(size_hint_x=0.3, size_hint_y = None, height=60,
-                                                     option_cls=StyledSpinnerOption,
+                                                     option_cls=StyledSpinnerOption, background_normal='',
                                                      background_color=spinbg, color=spinfg)
             self.spinners['VAX_MANU']=Spinner(size_hint_x=0.3, size_hint_y = None, height=60,
-                                              option_cls=StyledSpinnerOption,
+                                              option_cls=StyledSpinnerOption, background_normal='',
                                               background_color=spinbg, color=spinfg)
             for s in self.spinners.values():
                 s.bind(text=self.spinner_on_set)
@@ -432,7 +456,6 @@ class DataQueryViewScreen(Screen):
         label1 = ColoredLabel(rgba, size_hint_x=0.2, size_hint_y=None, height=50, color=textcolor,
                             text="Search lab text?"
                             )
-
         glayout.add_widget(label1)
         cbox = ToggleButton(size_hint_y=None, height=25, size_hint_x=None, width=40,
                              allow_no_selection=True, background_color=cboxcol)
@@ -651,6 +674,13 @@ class DataQueryViewScreen(Screen):
         hbox1.add_widget(self.ids['symptomregex'])
         vbox.add_widget(hbox1)
 
+        hbox1=BoxLayout(orientation='horizontal', size_hint_y=None, height=60, padding=11)
+        self.ids['daterange']=TextInput(size_hint_y=None, height=50, foreground_color=tboxfg,
+                                            background_color=tboxbg, size_hint_x=0.4)
+        hbox1.add_widget(ColoredLabel(rgba, size_hint_x=0.2, size_hint_y=None, height=50,
+                                      text='Date range:', color=textcolor))
+        hbox1.add_widget(self.ids['daterange'])
+        vbox.add_widget(hbox1)
 
         #hbox1=BoxLayout(orientation='horizontal', size_hint_y=None, height=60, padding=11)
         #hbox1.add_widget(
