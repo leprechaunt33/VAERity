@@ -391,6 +391,7 @@ class RootWindow(App):
         popcontent.add_widget(colorpicker)
         popcontent.add_widget(btn1)
         self.editstylepop=Popup(size_hint=(0.6, 0.6), title='Edit existing style', content=popcontent)
+        self.editstylepop.background_color=(0,0,0,0.05)
         self.editstylepop.open()
 
     def keyboard_event_loop(self, window, key, scancode, codepoint, modifier):
