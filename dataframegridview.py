@@ -1,5 +1,3 @@
-# TODO: Transition gridview to be within a scrollview and set meaningful sizes for column headers
-# TODO: Possible zoom functionality on KivyFigureCanvasAgg via touch gestures or scrollview.
 import kivy.graphics
 import numpy as np
 from kivy.app import App
@@ -34,7 +32,6 @@ class ColoredButton(Button):
         self.bind(pos=self.update_rect, size=self.update_rect)
 
     def set_bgcolor(self, color):
-        print(f"Entered bgcolor: {color}")
         self.bgcolor=color
         self.canvas.before.clear()
         with self.canvas.before:
@@ -45,9 +42,8 @@ class ColoredButton(Button):
             self._rect=RoundedRectangle(pos=self.pos, size=(self.size[0]-1, self.size[1]-1))
 
     def set_fgcolor(self, color):
-        print(f"Entered fgcolor: {color}")
-        self.canvas.before.clear()
         self.fgcolor=color
+        self.canvas.before.clear()
         with self.canvas.before:
             Color(*self.fgcolor)
             self._line=RoundedRectangle(pos=self.pos, size=self.size)
