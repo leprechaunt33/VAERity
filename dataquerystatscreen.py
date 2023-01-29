@@ -1,5 +1,6 @@
 import os
 import datetime
+import re
 from datetime import timedelta, datetime
 import time
 import kivy.garden.matplotlib
@@ -11,6 +12,7 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.label import Label
 from kivy.uix.popup import Popup
+from kivy.uix.relativelayout import RelativeLayout
 from kivy.uix.screenmanager import Screen
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.spinner import Spinner
@@ -102,6 +104,44 @@ class DataQueryStatScreen(Screen):
         self._sv.scroll_x = float(l)
         self._sv.scroll_y = float(b)
 
+    def graphopt_submit(self, *args):
+        graphopt=self.graph_options[self.current_figure][self.current_axis]
+        axis=self.figs[self.current_figure].axes[self.current_axis]
+        if 'checkopt' in graphopt:
+            checkopt=graphopt['checkopt']
+            if checkopt is not None:
+                checkopt(self.current_figure, self.current_axis, graphopt, self.popupredraw, axis)
+
+        self.popupredraw.dismiss()
+
+        if 'runopt' in graphopt:
+            runopt=graphopt['runopt']
+            runopt(self.current_figure, self.current_axis, graphopt, self.popupredraw, axis)
+
+        self._sv.children[0].draw()
+
+    def popup_graph_options(self, *args):
+        bbg=get_color_from_hex(self.currapp._vc['button.background'])
+        bfg=get_color_from_hex(self.currapp._vc['button.textcolor'])
+        graphopt=self.graph_options[self.current_figure][self.current_axis]
+        axis = self.figs[self.current_figure].axes[self.current_axis]
+        widgetcontent=[]
+        popupredraw=Popup(size_hint = (0.9, 0.9), title='Graph Options')
+        if 'buildopt' in graphopt:
+            buildopt=graphopt['buildopt']
+            widgetcontent=buildopt(self.current_figure, self.current_axis, graphopt, popupredraw, axis)
+        popcontent=RelativeLayout(size_hint=(1,1))
+        for widget in widgetcontent:
+            popcontent.add_widget(widget)
+
+        submitbutton=ColoredButton(bbg, color=bfg, text="Redraw", size_hint=(1,None), height=50)
+        submitbutton.pos_hint={'x': 0, 'y': 0}
+        submitbutton.bind(on_release=self.graphopt_submit)
+        popcontent.add_widget(submitbutton)
+        popupredraw.content = popcontent
+        self.popupredraw=popupredraw
+        self.popupredraw.open()
+
     def handle_keyboard(self, window, key, scancode, codepoint, modifier, keyname):
         statscreen=self
         currfig: plt.Figure = statscreen.figs[statscreen.current_figure]
@@ -186,31 +226,55 @@ class DataQueryStatScreen(Screen):
             self.argument=''
             self.update_graphinfo()
         elif (keyname == 'l') and ('ctrl' in modifier):
-            ax.set_xlim(xmin=float(self.argument))
-            self._sv.children[0].draw()
+            try:
+                ax.set_xlim(xmin=float(self.argument))
+                self._sv.children[0].draw()
+            except Exception as ex:
+                print(ex)
+
             self.argument = ''
             self.update_graphinfo()
         elif (keyname == 'r') and ('ctrl' in modifier):
-            ax.set_xlim(xmax=float(self.argument))
-            self._sv.children[0].draw()
+            try:
+                ax.set_xlim(xmax=float(self.argument))
+                self._sv.children[0].draw()
+            except Exception as ex:
+                print(ex)
+
             self.argument = ''
             self.update_graphinfo()
         elif (keyname == 'u') and ('ctrl' in modifier):
-            ax.set_ylim(ymax=float(self.argument))
-            self._sv.children[0].draw()
+            try:
+                ax.set_ylim(ymax=float(self.argument))
+                self._sv.children[0].draw()
+            except Exception as ex:
+                print(ex)
+
             self.argument = ''
             self.update_graphinfo()
         elif (keyname == 'd') and ('ctrl' in modifier):
-            ax.set_ylim(ymin=float(self.argument))
-            self._sv.children[0].draw()
+            try:
+                ax.set_ylim(ymin=float(self.argument))
+                self._sv.children[0].draw()
+            except Exception as ex:
+                print(ex)
             self.argument = ''
             self.update_graphinfo()
         elif (keyname == 'f') and ('ctrl' in modifier):
             self.scroll_to_current_graph()
-        elif (keyname == 'e') and ('ctrl' in modifier):
-            (l, b, w, h) = ax.get_position().bounds
-            print(f"Scroll position {self._sv.scroll_x},{self._sv.scroll_y}, left bottom is {l} {b}")
-            print(f"Difference {self._sv.scroll_x-l},{self._sv.scroll_y-b}")
+        elif (keyname == 't') and ('ctrl' in modifier):
+            datematch=re.compile(r'^(\d{4})(\d{2})(\d{2})$')
+            dateresult=datematch.fullmatch(self.argument)
+            if dateresult:
+                epoch = time.mktime(time.localtime(0))
+                dt1 = datetime.fromtimestamp(epoch)
+                dt2 = datetime(int(dateresult.group(1)), int(dateresult.group(2)), int(dateresult.group(3)))
+                tdelta: timedelta= dt2 - dt1
+                newxmin = tdelta.days + (tdelta.seconds / 86400) + (datetime.now() - datetime.utcnow()).seconds / 86400
+                self.argument=f"{newxmin:.4}"
+                self.update_graphinfo()
+        elif (keyname == 'r') and ('alt' in modifier):
+            self.popup_graph_options()
         elif all(m in modifier for m in ['ctrl', 'alt']) and codepoint == 'n':
             statscreen.current_figure=(statscreen.current_figure+1) % len(statscreen.figs)
         elif keyname == 'right':
@@ -249,7 +313,7 @@ class DataQueryStatScreen(Screen):
         self.current_axis = graphnum
         self.update_graphinfo()
 
-    def set_figure(self,fig, xdata):
+    def set_figure(self,fig, xdata, graph_options):
         self.clear_scrollview()
 
         if isinstance(fig,list):
@@ -260,6 +324,8 @@ class DataQueryStatScreen(Screen):
             self._sv.add_widget(ka)
             self.figs=fig
             self.xdata=xdata
+            if graph_options is not None:
+                self.graph_options=graph_options
         else:
             ka=FigureCanvasKivyAgg(fig)
             ka.size_hint=(None,None)
