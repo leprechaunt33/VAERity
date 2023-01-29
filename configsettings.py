@@ -190,7 +190,64 @@ class VaeritySettings:
                 'desc': 'Text color for labels on a flux capacitor',
                 'type': 'color',
                 'section': 'style'
+            },
+            {
+                'key': 'fluxtoggle.density',
+                'title': 'Flux Capacitor Density Toggle Background"',
+                'desc': 'Color for toggle button on flux capacitor upper left arm',
+                'type': 'color',
+                'section': 'style'
+            },
+            {
+                'key': 'fluxtoggle.maddog',
+                'title': 'Flux Capacitor Mad Dog Toggle Background"',
+                'desc': 'Color for toggle button on flux capacitor upper right arm',
+                'type': 'color',
+                'section': 'style'
+            },
+            {
+                'key': 'fluxtoggle.calvinklein',
+                'title': 'Flux Capacitor Calvin Klein Toggle Background"',
+                'desc': 'Color for toggle button on flux capacitor lower arm',
+                'type': 'color',
+                'section': 'style'
+            },
+            {
+                'key': 'fluxbounds.linecolor',
+                'title': 'Flux Capacitor Boundary Color"',
+                'desc': 'Color for bounding box on flux capacitor',
+                'type': 'color',
+                'section': 'style'
+            },
+            {
+                'key': 'wirecolor.maddog',
+                'title': 'Flux Capacitor Wire Color - Mad Dog"',
+                'desc': 'Color for first wire on flux capacitor',
+                'type': 'color',
+                'section': 'style'
+            },
+            {
+                'key': 'wirecolor.density',
+                'title': 'Flux Capacitor Wire Color - Density"',
+                'desc': 'Color for second wire on flux capacitor',
+                'type': 'color',
+                'section': 'style'
+            },
+            {
+                'key': 'wirecolor.calvinklein',
+                'title': 'Flux Capacitor Wire Color - Calvin"',
+                'desc': 'Color for third wire on flux capacitor',
+                'type': 'color',
+                'section': 'style'
+            },
+            {
+                'key': 'wirecolor.center',
+                'title': 'Flux Capacitor Wire Color - Center"',
+                'desc': 'Color for fourth (center) wire on flux capacitor',
+                'type': 'color',
+                'section': 'style'
             }
+
         ])
     ]
 
@@ -208,7 +265,11 @@ class VaeritySettings:
                                   'vaccineheader.background': '#111133', 'vaccineheader.textcolor': '#FFFFFF',
                                   'gridview.background': '#092E5B', 'gridview.textcolor': '#FFFFFF',
                                   'fluxlabel.background': '#3C79F5', 'fluxlabel.textcolor': '#2DCDDF',
-                                  'spinner.textcolor': '#FFFFFF', 'spinner.background': '#092E5B'
+                                  'spinner.textcolor': '#FFFFFF', 'spinner.background': '#092E5B',
+                                  'fluxtoggle.density': '#808080', 'fluxtoggle.maddog': '#808080',
+                                  'fluxtoggle.calvinklein': '#808080', 'fluxbounds.linecolor': '#ffff00',
+                                  'wirecolor.calvinklein': '#ff0000', 'wirecolor.maddog': '#ff6d28',
+                                  'wirecolor.density': '#0000ff', 'wirecolor.center': '#00ff00'
                                   }),
                        ('main', {
                            'vaersfolder': 'D:/AllVAERSDataCSVS'
