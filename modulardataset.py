@@ -62,7 +62,6 @@ class ModularDataset:
                     self.ids[id].foreground_color = get_color_from_hex(self.currapp._vc[key])
             return
 
-        print(f"In modular dataset style callback")
         if key in self.stylekeys:
             for element in self.stylekeys[key]:
                 if re.fullmatch(r'^\w+\.textcolor$',key):
