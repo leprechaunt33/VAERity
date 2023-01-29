@@ -10,6 +10,8 @@ import datetime as dt
 import inscriptis
 import klembord
 import matplotlib.pyplot as plt
+from kivy.uix.togglebutton import ToggleButton
+
 plt.switch_backend('agg')
 import numpy as np
 import pandas as pd
@@ -510,9 +512,9 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
             return f"Record {self.start_index+1} of {len(self._ds)} records"
 
     @mainthread
-    def showplot(self, fig, xdata):
+    def showplot(self, fig, xdata, graph_options):
         ss=self.currapp.manager.get_screen('statscreen')
-        ss.set_figure(fig, xdata)
+        ss.set_figure(fig, xdata, graph_options)
         self.currapp.manager.current = 'statscreen'
 
     def summarize_plot(self,*args):
@@ -565,6 +567,111 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
             if len(narrow_criteria) > 0:
                 subhead=f"{subhead}{', '.join(narrow_criteria)}"
         return subhead
+
+    def patient_outcomes_by_time(self, current_figure, current_axis, options, popup, axis: plt.Axes):
+        if options is None:
+            options = {'stacked': False, 'cumulative': False, 'percentage': False}
+        limited_ds: pd.DataFrame=self._ds[['DIED','HOSPITAL','DISABLE', 'ER_ED_VISIT', 'L_THREAT', 'weekdate']].groupby('weekdate').count()
+        axis.cla()
+        stackdict = limited_ds.fillna(value=0).reset_index().to_dict()
+        stacklist = []
+        stacklegends=[]
+        ourx = stackdict['weekdate']
+        for col in stackdict.keys():
+            if col != 'weekdate':
+                oury = stackdict[col]
+                if options['percentage']:
+                    dslen=len(self._ds)
+                    stackcol = [oury[k]*100/dslen for k, v in sorted(ourx.items(), key=lambda x: x[1])]
+                else:
+                    stackcol = [oury[k] for k, v in sorted(ourx.items(), key=lambda x: x[1])]
+                stacklist.append(stackcol)
+                stacklegends.append(col)
+        ourx = [x.date() for x in sorted(ourx.values())]
+        if options['stacked']:
+            if options['cumulative']:
+                for yseries in stacklist:
+                    for i, y in enumerate(yseries):
+                        if i > 0:
+                            yseries[i]=y+yseries[i-1]
+                axis.stackplot(ourx, *stacklist)
+            else:
+                axis.stackplot(ourx, *stacklist)
+            axis.legend(stacklegends)
+        else:
+            if options['cumulative']:
+                for yseries in stacklist:
+                    for i, y in enumerate(yseries):
+                        if i > 0:
+                            yseries[i]=y+yseries[i-1]
+                for i, series in enumerate(stacklist):
+                    axis.plot(ourx, series, label=stacklegends[i])
+
+                axis.legend()
+            else:
+                sns.lineplot(data=limited_ds, ax=axis)
+        if options['cumulative']:
+            axis.set_title("Key patient outcomes by time (cumulative")
+        else:
+            axis.set_title("Key patient outcomes by time")
+        if options['percentage']:
+            axis.set_ylabel("Percentage of total reports")
+        else:
+            axis.set_ylabel("Number of reports")
+        axis.set_xlabel("Week")
+        xdata=limited_ds.reset_index()['weekdate'].to_list()
+        return xdata
+
+    def bytime_buildopt(self,current_figure, current_axis, options, popup, axis):
+        bbg=get_color_from_hex(self.currapp._vc['button.background'])
+        bfg=get_color_from_hex(self.currapp._vc['button.textcolor'])
+        lbg=get_color_from_hex(self.currapp._vc['label.background'])
+        lfg=get_color_from_hex(self.currapp._vc['label.textcolor'])
+        cboxcol=get_color_from_hex(self.currapp._vc['togglebutton.background'])
+
+        hbox1=BoxLayout(orientation='horizontal')
+        lbl1 = ColoredLabel(lbg, color=lfg, text="Cumulative?", size_hint=(0.2,0.1))
+        lbl1.pos_hint={'top': 1, 'x': 0}
+        self.ids['bytime_cumulative']=ToggleButton(size_hint_y=None, height=25, size_hint_x=None, width=40,
+                                                   allow_no_selection=True, background_color=cboxcol,
+                                                   pos_hint={'x': 0.2, 'top': 1})
+        hbox1.add_widget(lbl1)
+        hbox1.add_widget(self.ids['bytime_cumulative'])
+
+        hbox2 = BoxLayout(orientation='horizontal')
+        lbl1 = ColoredLabel(lbg, color=lfg, text="Stacked?", size_hint=(0.2,0.1))
+        lbl1.pos_hint={'top': 0.9, 'x': 0}
+        self.ids['bytime_stacked']=ToggleButton(size_hint_y=None, height=25, size_hint_x=None, width=40,
+                                                   allow_no_selection=True, background_color=cboxcol,
+                                                   pos_hint={'x': 0.2, 'top': 0.9})
+        hbox2.add_widget(lbl1)
+        hbox2.add_widget(self.ids['bytime_stacked'])
+
+        hbox3 = BoxLayout(orientation='horizontal')
+        lbl1 = ColoredLabel(lbg, color=lfg, text="Percent?", size_hint=(0.2,0.1))
+        lbl1.pos_hint={'top': 0.8, 'x': 0}
+        self.ids['bytime_percent']=ToggleButton(size_hint_y=None, height=25, size_hint_x=None, width=40,
+                                                   allow_no_selection=True, background_color=cboxcol,
+                                                   pos_hint={'x': 0.2, 'top': 0.8})
+        hbox3.add_widget(lbl1)
+        hbox3.add_widget(self.ids['bytime_percent'])
+        return [hbox1, hbox2, hbox3]
+
+    def bytime_checkopt(self, current_figure, current_axis, options, popup, axis):
+        if self.ids['bytime_percent'].state == 'down':
+            options['percentage']=True
+        else:
+            options['percentage']=False
+
+        if self.ids['bytime_stacked'].state == 'down':
+            options['stacked']=True
+        else:
+            options['stacked']=False
+
+        if self.ids['bytime_cumulative'].state == 'down':
+            options['cumulative']=True
+        else:
+            options['cumulative']=False
 
     def stats_thread(self):
         dfs=self.currapp.df['symptoms']
@@ -675,27 +782,32 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         navals = self._ds.isnull().sum().sort_values().reset_index()
         bymanu=self._ds.VAX_MANU.value_counts().reset_index()
         xdata=[[]]
+        graph_options=[[]]
         
         plt.rcParams['axes.grid']=True
         # NA values - graph at top left
         statusupdate("MPL STARTING",7)
         xdata[0].append(navals[0].to_list())
+        graph_options[0].append({})
         sns.barplot(y=navals['index'].to_list(), x=navals[0].to_list(), ax=ax0)
         ax0.set_title("Data Insights by % filled")
         # Top symptoms - left, middle
         sns.barplot(y=c['s'][0,0:maxsym],x=c['c'][0,0:maxsym], palette=mypal, ax=ax1)
         ax1.set_title("Most common symptoms")
         xdata[0].append(c['c'][0,0:maxsym])
+        graph_options[0].append({})
         # Incidents by manufacturer - bottom left.
         sns.barplot(data=bymanu, y='index', x='VAX_MANU', palette=mypal, ax=ax2)
         ax2.set_title("Reports by Manufacturer")
         xdata[0].append(bymanu['VAX_MANU'])
+        graph_options[0].append({})
         statusupdate("MPL 3 of 10",8)
         # Numdays cumulative - upper middle
         out=self._ds
         sns.histplot(data=out[out.DIED == 'Y'], x="NUMDAYS", binrange=[0, 60], binwidth=1,
                      cumulative=True, color="red", ax=ax5)
         xdata[0].append(out['NUMDAYS'].tolist())
+        graph_options[0].append({})
         sns.histplot(data=out[out.HOSPITAL == 'Y'], x="NUMDAYS",
                          binrange=[0, 60], binwidth=1, alpha=0.7, cumulative=True, color="blue", ax=ax5)
         sns.histplot(data=out[(out.DISABLE == 'Y') | (out.L_THREAT == 'Y')], x="NUMDAYS",
@@ -716,8 +828,11 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         ax6.set_title("At a glance")
 
         xdata[0].append(self._ds.HOSPDAYS.tolist())
+        graph_options[0].append({})
         xdata[0].append(self._ds.AGE_YRS.tolist())
+        graph_options[0].append({})
         xdata[0].append(xsummary)
+        graph_options[0].append({})
 
         statusupdate("MPL HISTS DONE",10)
 
@@ -729,9 +844,11 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         sns.barplot(x=STATES.index, y=STATES.values, ax=ax7, palette=mypal)
         ax7.set_title("Top States in Dataset")
         xdata[0].append(STATES.index)
+        graph_options[0].append({})
         sns.barplot(x=BATCHES.iloc[0:maxbatch].index, y=BATCHES.iloc[0:maxbatch].values, ax=ax8, palette=mypal)
         ax8.set_title(f"Top batches ({maxbatch} shown)")
         xdata[0].append(BATCHES.iloc[0:maxbatch].index)
+        graph_options[0].append({})
         statusupdate("MPL PLOT PAGE 1/2 COMPLETE",11)
 
         ax6.tick_params(axis="x", rotation=45)
@@ -760,6 +877,7 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         out['lenmed'] = out['OTHER_MEDS'].str.len()
         tsindex=0
         xdata.append([])
+        graph_options.append([])
         plt.tight_layout(pad=5.0)
 
         colors=sns.color_palette("muted",10)
@@ -780,6 +898,7 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         ts[tsindex].legend()
         statusupdate("MPL PLOT PAGE 2/2 MULTIHIST DONE", 12)
         xdata[1].append(range(0,int(out['lensym'].max()), 10))
+        graph_options[1].append({})
         tsindex += 1
 
         dq=self.currapp.manager.get_screen('dataqueryscreen')
@@ -801,6 +920,7 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
             xmax=gby['weekdate'].max()
             ts[tsindex].set_xlim(left=xmin, right=xmax)
             xdata[1].append(pivot.index)
+            graph_options[1].append({})
 
             tsindex += 1
         elif (len(STATES) == 1) or (dq.ids['STATE'].text != ''):
@@ -821,6 +941,7 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
             ts[tsindex].set_ylabel("Number of reports")
             ts[tsindex].legend()
             xdata[1].append(pivot.index)
+            graph_options[1].append({})
 
             tsindex += 1
         else:
@@ -841,6 +962,7 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
             ts[tsindex].set_xlim(left=xmin, right=xmax)
             ts[tsindex].set_title("Reports by time")
             xdata[1].append(ourx)
+            graph_options[1].append({})
 
             tsindex += 1
 
@@ -853,6 +975,7 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         sns.countplot(data=out, y='VAX_TYPE', ax=ts[tsindex], palette="ch:s=2.9,r=-0.5,h=0.8,l=0.7,d=0.2",
                       order=out['VAX_TYPE'].value_counts(ascending=False).iloc[:vcounts].index)
         xdata[1].append(range(0,vcounts))
+        graph_options[1].append({})
         ts[tsindex].set_title("Incidents by Vaccine Type")
         ts[tsindex].set_xlabel("Number of incidents")
         ts[tsindex].set_ylabel("Vaccine Type")
@@ -865,15 +988,27 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         sns.countplot(data=out, y='VAX_DOSE_SERIES', ax=ts[tsindex], palette="ch:s=1.3,r=-0.4,h=0.8,l=0.7,d=0.2",
                       order=out['VAX_DOSE_SERIES'].value_counts(ascending=False).iloc[:dosecount].index)
         xdata[1].append(range(0,dosecount))
+        graph_options[1].append({})
         ts[tsindex].set_title("Incidents by Dose Number")
         ts[tsindex].set_xlabel("Number of incidents")
         ts[tsindex].set_ylabel("Dose number")
         tsindex += 1
 
+        limited_ds=self._ds[['DIED','HOSPITAL','DISABLE', 'ER_ED_VISIT', 'L_THREAT', 'weekdate']].groupby('weekdate').count()
+        sns.lineplot(data=limited_ds, ax=ts[tsindex])
+        xdata[1].append(limited_ds.reset_index()['weekdate'].to_list())
+        graph_options[1].append({'buildopt': self.bytime_buildopt, 'runopt': self.patient_outcomes_by_time,
+                                 'checkopt': self.bytime_checkopt
+                                 })
+        ts[tsindex].set_title("Key patient outcomes by time")
+        ts[tsindex].set_ylabel("Number of reports")
+        ts[tsindex].set_xlabel("Week")
+        tsindex +=1
+
         #sns.heatmap(pivot, ax=ts[tsindex])
         statusupdate("MPL PLOT PAGE 2/2 COMPLETE",20)
         figs.append(fig2)
-        self.showplot(figs, xdata)
+        self.showplot(figs, xdata, graph_options)
 
     def statsscreen(self, *args):
         self.idlist=sorted(self._ds['VAERS_ID'].to_list())
