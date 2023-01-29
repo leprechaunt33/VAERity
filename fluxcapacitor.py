@@ -1,4 +1,5 @@
 import math
+import re
 import traceback
 
 from kivy.clock import Clock
@@ -6,7 +7,7 @@ from kivy.core.window import Window
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.label import Label
 from kivy.app import App
-from kivy.graphics import Color, Rectangle, PushMatrix, Translate, Rotate, PopMatrix, Line
+from kivy.graphics import Color, Rectangle, PushMatrix, Translate, Rotate, PopMatrix, Line, InstructionGroup
 from kivy.properties import ObjectProperty, BooleanProperty, NumericProperty, StringProperty
 from kivy.core.text import Label as CoreLabel
 from kivy.uix.relativelayout import RelativeLayout
@@ -31,6 +32,55 @@ class FluxCapacitor(RelativeLayout):
     font_size = 11
     chkindex = None
     boolop = StringProperty()
+    canvascolors = dict()
+
+    def get_wire_colors(self):
+        self.wirecolors=[]
+        self.wirecolors.append(get_color_from_hex(self.currapp._vc['wirecolor.maddog']))
+        self.wirecolors.append(get_color_from_hex(self.currapp._vc['wirecolor.density']))
+        self.wirecolors.append(get_color_from_hex(self.currapp._vc['wirecolor.calvinklein']))
+        self.wirecolors.append(get_color_from_hex(self.currapp._vc['wirecolor.center']))
+
+    def set_calvinklein_rectangle(self, fgcolors, bgcolors):
+        fluxtoggle=get_color_from_hex(self.currapp._vc['fluxtoggle.calvinklein'])
+
+        n = len(self.checks)
+        # Checkbox
+        if n < 3:
+            t = ToggleButton(background_color=fluxtoggle, group=self.fieldgroup,
+                              background_normal='', size_hint=(None, None), width=15, height=15)
+
+            self.checks.append(t)
+
+            n = len(self.checks)
+            # Calvin's check is centered with its bottom left edge 8px left of center
+            # and its bottom y 15 above the bottom right of calvin's text
+            self.checks[n - 1].pos = (self.radius - 8, self.calvinklein.pos[1] + 15)
+
+        self.calvinklein.canvas.before.clear()
+        self.canvascolors['calvinklein'].clear()
+        with self.calvinklein.canvas.before:
+            self.canvascolors['calvinklein'].append(Color(*self.wirecolors[2]))
+            Line(width=self.wirewidth,
+                points=[self.radius, self.radius, self.radius, 0.2*self.radius])
+            self.canvascolors['calvinklein'].append(Color(*fgcolors[2]))
+            self.wires.append(Line(width=self.wirewidth, points=[
+                self.radius, self.radius, self.calvinklein.pos[0],self.calvinklein.pos[1]
+            ]))
+            PushMatrix()
+            self.yourmymom = Rotate()
+            self.yourmymom.angle = 0
+            self.yourmymom.axis = (0, 0, 1)
+            self.yourmymom.origin = (self.center_x, self.center_y)
+            if len(self.rotates) < 3:
+                self.rotates.append(self.yourmymom)
+
+            self.canvascolors['calvinklein'].append(Color(*bgcolors[2]))
+            self.rectcalvin=Rectangle(pos=self.calvinklein.pos, size=self.calvinklein.size)
+
+        self.calvinklein.canvas.after.clear()
+        with self.calvinklein.canvas.after:
+            PopMatrix()
 
     def set_calvin(self, fgcolors, bgcolors):
         self.calvinklein = Label(text=self.fieldlabels[2], color=fgcolors[2], font_size=10,
@@ -47,38 +97,55 @@ class FluxCapacitor(RelativeLayout):
         posy2 = self.radius*0.2
 
         self.calvinklein.pos=(posx2, posy2)
+        self.set_calvinklein_rectangle(fgcolors, bgcolors)
 
-        # Checkbox
-        t = ToggleButton(background_color=get_color_from_hex("#808080"), group=self.fieldgroup,
-                          size_hint=(None, None), width=15, height=15)
+    def set_maddog_rectangle(self, fgcolors, bgcolors):
+        fluxtoggle=get_color_from_hex(self.currapp._vc['fluxtoggle.maddog'])
 
-        self.checks.append(t)
+        if len(self.checks) <3:
+            t = ToggleButton(background_color=fluxtoggle, group=self.fieldgroup,
+                             background_normal='', size_hint=(None, None), width=15, height=15)
 
-        n = len(self.checks)
-        # Calvin's check is centered with its bottom left edge 8px left of center
-        # and its bottom y 15 above the bottom right of calvin's text
-        self.checks[n - 1].pos = (self.radius - 8, posy2 + 15)
+            self.checks.append(t)
+            n = len(self.checks)
+            self.checks[n - 1].pos = (self.maddog.pos[0] - 15, self.maddog.pos[1] - 25)
 
-        # Position for wire 1
-        posn1 = self.to_window(posx2, posy2)
+        origin0=self.to_window(0,0, relative=True)
+        origin=(self.radius+origin0[0], self.radius+origin0[1])
+        madpos=(self.maddog.pos[0] + origin0[0], self.maddog.pos[1] + origin0[1])
 
-        origin = self.to_window(self.radius, self.radius)
+        self.maddog.canvas.before.clear()
+        self.canvascolors['maddog'].clear()
+        self.canvascolors['center'].clear()
+        with self.maddog.canvas.before:
+            self.canvascolors['center'].append(Color(*self.wirecolors[3], group='wirecolors'))
+            Line(width=self.wirewidth,
+                 points=[self.radius, self.radius, self.radius, 2* self.radius])
 
-        with self.calvinklein.canvas.before:
-            Color(*fgcolors[2])
-            self.wires.append(Line(width=self.wirewidth, points=[
-                origin[0], origin[1], posn1[0],posn1[1]
-            ]))
+            self.canvascolors['maddog'].append(Color(*self.wirecolors[0], group='wirecolors'))
+
+            Line(width=self.wirewidth,
+                points=[self.radius, self.radius, self.maddog.pos[0],self.maddog.pos[1]])
+
+            Color(1,1,0,1)
+            Line(width=self.wirewidth,
+                 points=[0, 0,
+                         2*self.radius, 0,
+                         2*self.radius, 2*self.radius,
+                         0, 2*self.radius,
+                         0,0], dash_offset=2, dash_length=2)
             PushMatrix()
-            self.yourmymom = Rotate()
-            self.yourmymom.angle = 0
-            self.yourmymom.axis = (0, 0, 1)
-            self.yourmymom.origin = (self.center_x, self.center_y)
-            self.rotates.append(self.yourmymom)
-            Color(*bgcolors[2])
-            self.rectcalvin=Rectangle(pos=self.calvinklein.pos, size=self.calvinklein.size)
+            self.tannen=Rotate()
+            self.tannen.angle=self.upper_wire_angle-90
+            self.tannen.axis=(0,0,1)
+            self.tannen.origin = (self.maddog.pos[0],self.maddog.pos[1])
+            if len(self.rotates) < 3:
+                self.rotates.append(self.tannen)
+            Color(*bgcolors[0])
+            self.rectdog=Rectangle(pos=self.maddog.pos, size=self.maddog.size)
 
-        with self.calvinklein.canvas.after:
+        self.maddog.canvas.after.clear()
+        with self.maddog.canvas.after:
             PopMatrix()
 
     def set_maddog(self,fgcolors, bgcolors):
@@ -95,46 +162,43 @@ class FluxCapacitor(RelativeLayout):
         posy = self.radius*(1+math.sin(math.radians(uwa))*0.9)-self.maddog.texture_size[1]/2
 
         self.maddog.pos = (posx, posy)
+        self.set_maddog_rectangle(fgcolors, bgcolors)
 
-        t = ToggleButton(background_color=get_color_from_hex("#808080"), group=self.fieldgroup,
-                          size_hint=(None, None), width=15, height=15)
+    def set_density_rectangle(self, fgcolors, bgcolors):
+        fluxtoggle=get_color_from_hex(self.currapp._vc['fluxtoggle.density'])
+        # After some idiotic attempts to converting between layouts, I realised I could
+        # get the window position of the relativelayout itself and translate the relative
+        # coordinates witin it in that way.
+        uwa=180-self.upper_wire_angle
+        posx1 = self.radius*(1+math.cos(math.radians(uwa))*0.9)-self.density.texture_size[0]/2
+        posy1 = self.radius*(1+math.sin(math.radians(uwa))*0.9)-self.density.texture_size[0]/2
 
-        self.checks.append(t)
-        n = len(self.checks)
-        self.checks[n - 1].pos = (posx - 15, posy - 25)
+        if len(self.checks) < 3:
+            t = ToggleButton(background_color=fluxtoggle, group=self.fieldgroup,
+                             background_normal='', size_hint=(None, None), width=15, height=15)
 
-        origin=self.to_window(self.radius, self.radius)
-        madpos=self.to_window(posx, posy)
+            self.checks.append(t)
+            n = len(self.checks)
+            self.checks[n - 1].pos = (self.density.pos[0] + 15, self.density.pos[1] - 25)
 
-        with self.maddog.canvas.before:
-            Color(0,1,0,1)
-            Line(width=self.wirewidth,
-                 points=[origin[0], origin[1], origin[0], origin[1]+ self.radius])
-
-            Color(1,0,0,1)
-            Line(width=self.wirewidth,
-                points=[origin[0], origin[1], origin[0],origin[1]-self.radius])
-
-            Line(width=self.wirewidth,
-                points=[origin[0], origin[1], madpos[0],madpos[1]])
-
-            Color(1,1,0,1)
-            Line(width=self.wirewidth,
-                 points=[0, 0,
-                         2*self.radius, 0,
-                         2*self.radius, 2*self.radius,
-                         0, 2*self.radius,
-                         0,0], dash_offset=2, dash_length=2)
+        self.density.canvas.before.clear()
+        self.canvascolors['density'].clear()
+        with self.density.canvas.before:
+            self.canvascolors['density'].append(Color(*self.wirecolors[1]))
+            self.wires.append(Line(width=self.wirewidth, points=[
+                self.radius, self.radius, posx1,posy1]))
             PushMatrix()
-            self.tannen=Rotate()
-            self.tannen.angle=self.upper_wire_angle-90
-            self.tannen.axis=(0,0,1)
-            self.tannen.origin = (posx,posy)
-            self.rotates.append(self.tannen)
-            Color(*bgcolors[0])
-            self.rectdog=Rectangle(pos=self.maddog.pos, size=self.maddog.size)
+            self.destiny = Rotate()
+            self.destiny.angle = 90-self.upper_wire_angle
+            self.destiny.axis = (0, 0, 1)
+            self.destiny.origin = (self.density.pos[0], self.density.pos[1])
+            if len(self.rotates) < 3:
+                self.rotates.append(self.destiny)
+            self.canvascolors['density'].append(Color(*bgcolors[1]))
+            self.rectdestiny=Rectangle(pos=self.density.pos, size=self.density.size)
 
-        with self.maddog.canvas.after:
+        self.density.canvas.after.clear()
+        with self.density.canvas.after:
             PopMatrix()
 
     def set_density(self, fgcolors, bgcolors):
@@ -150,33 +214,7 @@ class FluxCapacitor(RelativeLayout):
         posy1 = self.radius*(1+math.sin(math.radians(uwa))*0.9)-self.density.texture_size[0]/2
 
         self.density.pos=(posx1,posy1)
-        origin=self.to_window(self.radius, self.radius)
-        densitypos=self.to_window(posx1, posy1)
-
-        t = ToggleButton(background_color=get_color_from_hex("#808080"), group=self.fieldgroup,
-                          size_hint=(None, None), width=15, height=15)
-
-        self.checks.append(t)
-        n = len(self.checks)
-        self.checks[n - 1].pos = (posx1 + 15, posy1 - 25)
-
-        with self.density.canvas.before:
-            Color(*fgcolors[1])
-            self.wires.append(Line(width=self.wirewidth, points=[
-                origin[0], origin[1], posx1,posy1]))
-            Line(width=self.wirewidth,
-                points=[origin[0], origin[1], densitypos[0],densitypos[1]])
-            PushMatrix()
-            self.destiny = Rotate()
-            self.destiny.angle = self.upper_wire_angle
-            self.destiny.axis = (0, 0, 1)
-            self.rotates.append(self.destiny)
-            self.destiny.origin = (posx1, posy1)
-            Color(*bgcolors[1])
-            self.rectdestiny=Rectangle(pos=self.density.pos, size=self.density.size)
-
-        with self.density.canvas.after:
-            PopMatrix()
+        self.set_density_rectangle(fgcolors, bgcolors)
 
     def toggleop(self, *args):
         self.df.drop_filter(inplace=True)
@@ -200,6 +238,12 @@ class FluxCapacitor(RelativeLayout):
         self.on_state(instance, value)
         return True
 
+    def set_flux_header_rectangle(self, fgcolors, bgcolors):
+        self.fluxheader.canvas.before.clear()
+        with self.fluxheader.canvas.before:
+            Color(*bgcolors[0])
+            self.fluxheadrect=Rectangle(pos=self.fluxheader.pos, size=self.fluxheader.size)
+
     def set_flux_header(self, fgcolors, bgcolors):
         if self.boolop == 'and':
             markup="([color=#5BC0F8][u][ref=boolopchange]A[/ref][/u][/color])"
@@ -213,12 +257,10 @@ class FluxCapacitor(RelativeLayout):
         self.fluxheader.height=self.fluxheader.texture_size[1]+5
         self.fluxheader.width=2*self.radius
         self.fluxheader.bind(on_ref_press = self.toggleop)
-
-        with self.fluxheader.canvas.before:
-            Color(*bgcolors[0])
-            self.fluxheadrect=Rectangle(pos=self.fluxheader.pos, size=self.fluxheader.size)
+        self.set_flux_header_rectangle(fgcolors, bgcolors)
 
     def position_checks(self):
+        print("position_checks entered")
         self.checks[0].pos = (self.maddog.pos[0] - 15, self.maddog.pos[1] - 25)
         self.checks[1].pos = (self.density.pos[0] + 15, self.density.pos[1] - 25)
         self.checks[2].pos = (self.radius - 8, self.calvinklein.pos[1] + 15)
@@ -367,10 +409,7 @@ class FluxCapacitor(RelativeLayout):
             parent.add_widget(child)
             child=child.fluxNext()
 
-    def build_fusion_reactor(self):
-        self.size_hint=(None,None)
-        self.width=self.radius*2
-        self.height=self.radius*2
+    def calculate_colors(self, *args):
         self.defaults = [get_color_from_hex(self.currapp._vc['fluxlabel.background']),
                          get_color_from_hex(self.currapp._vc['fluxlabel.textcolor'])
                          ]
@@ -402,11 +441,83 @@ class FluxCapacitor(RelativeLayout):
                         fgcolors.append(get_color_from_hex(c))
         else:
             fgcolors = [self.defaults[1], self.defaults[1], self.defaults[1]]
+        return (bgcolors, fgcolors)
+
+    def style_callback(self, key):
+        print(f"Style callback with {key}")
+        fluxre=re.compile(r'^(fluxtoggle)\.(.+)$')
+        if key == 'fluxlabel.textcolor':
+            fgcolors, bgcolors = self.calculate_colors()
+            # These colors could all potentially be based of fluxlabel.textcolor
+            print(f"setting {self.fluxtext} color for maddog to {[int(i*255) for i in fgcolors[0]]} (color is currently {[int(i*255) for i in self.maddog.color]})")
+            self.fluxheader.color=fgcolors[0]
+            self.plutonium.color=fgcolors[0]
+            self.maddog.color=fgcolors[0]
+            self.density.color=fgcolors[1]
+            self.calvinklein.color=fgcolors[2]
+        elif key == 'fluxlabel.background':
+            fgcolors, bgcolors = self.calculate_colors()
+            self.set_calvinklein_rectangle(fgcolors, bgcolors)
+            self.set_maddog_rectangle(fgcolors, bgcolors)
+            self.set_density_rectangle(fgcolors, bgcolors)
+            self.set_flux_header_rectangle(fgcolors, bgcolors)
+            self.plutonium.set_bgcolor(bgcolors[0])
+        elif key == 'button.background':
+            col=get_color_from_hex(self.currapp._vc[key])
+            print(f"Setting button background {col}")
+            self.navLeft.set_bgcolor(col)
+            self.navright.set_bgcolor(col)
+        elif key == 'button.textcolor':
+            col=get_color_from_hex(self.currapp._vc[key])
+            print(f"Setting button foreground {col}")
+            self.navLeft.set_fgcolor(col)
+            self.navright.set_fgcolor(col)
+        elif key == 'wirecolor.calvinklein':
+            self.get_wire_colors()
+            c: Color=self.canvascolors['calvinklein'][0]
+            c.rgba=self.wirecolors[2]
+            self.calvinklein.canvas.ask_update()
+        elif key == 'wirecolor.density':
+            # FIXME: Instead of manually setting rgba, which seems not to trigger an update
+            # bind it to a kivy property instead
+            self.get_wire_colors()
+            c: Color = self.canvascolors['density'][0]
+            c.rgba = self.wirecolors[2]
+            self.density.canvas.ask_update()
+        elif key == 'wirecolor.maddog':
+            self.get_wire_colors()
+            c: Color = self.canvascolors['maddog'][0]
+            c.rgba = self.wirecolors[0]
+            self.maddog.canvas.ask_update()
+        elif key == 'wirecolor.center':
+            self.get_wire_colors()
+            insgroup: InstructionGroup=self.maddog.canvas.before.get_group('wirecolors')
+            print(insgroup)
+            insgroup.children[0].rgba = self.wirecolors[3]
+            insgroup.dr
+        elif fluxre.match(key):
+            match=fluxre.match(key)
+            print(match)
+            entityname=match.group(2)
+            if hasattr(self,entityname):
+                entity=getattr(self, entityname)
+            fluxorder=['maddog','density', 'calvinklein']
+            checknumber=fluxorder.index(entityname)
+            print(f"flux entity name is {entityname}, checknumber is {checknumber}, key is {key}")
+            self.checks[checknumber].background_color=get_color_from_hex(self.currapp._vc[key])
+
+    def build_fusion_reactor(self):
+        self.size_hint=(None,None)
+        self.width=self.radius*2
+        self.height=self.radius*2
+
+        bgcolors, fgcolors = self.calculate_colors()
+        self.get_wire_colors()
 
         # Colors have been loaded.  Now we focus on the 4 labels and 3 checkboxes.
 
-        self.plutonium = Label(text='plutonium', color=fgcolors[0], font_size=self.font_size,
-                               size_hint=(None,None), bold=True)
+        self.plutonium = ColoredLabel(bgcolors[0],text='plutonium', color=fgcolors[0], font_size=self.font_size,
+                                      size_hint=(None,None), bold=True)
 
         self.plutonium.texture_update()
         # Plutonium is centered within the relative layout
@@ -439,8 +550,21 @@ class FluxCapacitor(RelativeLayout):
             self.add_widget(check)
 
         self.bind(pos=self.update_flux, size=self.update_flux)
+        self.currapp.styles.register_callback(self, 'fluxlabel.textcolor', self.style_callback)
+        self.currapp.styles.register_callback(self, 'fluxlabel.background', self.style_callback)
+        self.currapp.styles.register_callback(self, 'button.textcolor', self.style_callback)
+        self.currapp.styles.register_callback(self, 'button.background', self.style_callback)
+        self.currapp.styles.register_callback(self, 'fluxtoggle.density', self.style_callback)
+        self.currapp.styles.register_callback(self, 'fluxtoggle.maddog', self.style_callback)
+        self.currapp.styles.register_callback(self, 'fluxtoggle.calvinklein', self.style_callback)
+        self.currapp.styles.register_callback(self, 'wirecolor.calvinklein', self.style_callback)
+        self.currapp.styles.register_callback(self, 'wirecolor.density', self.style_callback)
+        self.currapp.styles.register_callback(self, 'wirecolor.maddog', self.style_callback)
+        self.currapp.styles.register_callback(self, 'wirecolor.center', self.style_callback)
+        self.currapp.styles.register_callback(self, 'fluxbounds.linecolor', self.style_callback)
 
     def update_flux(self, *args):
+        print("update_flux entered")
         self.plutonium.pos = (self.radius-self.plutonium.texture_size[0]/2,
                               self.radius-self.plutonium.texture_size[1]/2)
 
@@ -461,6 +585,7 @@ class FluxCapacitor(RelativeLayout):
         self.wires[0].points[0:4]=(self.center_x, self.center_y,
                                    self.center_x + self.radius * math.cos(math.radians(uwa)) * 0.8,
                                    self.center_y + self.radius * math.sin(math.radians(uwa)) * 0.8)
+
 
     def row_indices(self, recursive):
         if self.chkindex is None:
@@ -561,6 +686,11 @@ class FluxCapacitor(RelativeLayout):
         self.fluxtext = fluxtext
 
         self.cboxcol = get_color_from_hex(self.currapp._vc['togglebutton.background'])
+        self.canvascolors['maddog']=list()
+        self.canvascolors['density']=list()
+        self.canvascolors['calvinklein']=list()
+        self.canvascolors['center']=list()
+
 
         # Save arguments before building our fusion reactor.  We'll need those
         # for later.
