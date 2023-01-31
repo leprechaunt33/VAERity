@@ -10,6 +10,7 @@ import datetime as dt
 import inscriptis
 import klembord
 import matplotlib.pyplot as plt
+from kivy.uix.spinner import Spinner
 from kivy.uix.togglebutton import ToggleButton
 
 plt.switch_backend('agg')
@@ -514,7 +515,7 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
     @mainthread
     def showplot(self, fig, xdata, graph_options):
         ss=self.currapp.manager.get_screen('statscreen')
-        ss.set_figure(fig, xdata, graph_options)
+        ss.set_figure(fig, xdata, graph_options, self.md)
         self.currapp.manager.current = 'statscreen'
 
     def summarize_plot(self,*args):
@@ -623,8 +624,6 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         return xdata
 
     def bytime_buildopt(self,current_figure, current_axis, options, popup, axis):
-        bbg=get_color_from_hex(self.currapp._vc['button.background'])
-        bfg=get_color_from_hex(self.currapp._vc['button.textcolor'])
         lbg=get_color_from_hex(self.currapp._vc['label.background'])
         lfg=get_color_from_hex(self.currapp._vc['label.textcolor'])
         cboxcol=get_color_from_hex(self.currapp._vc['togglebutton.background'])
@@ -672,6 +671,225 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
             options['cumulative']=True
         else:
             options['cumulative']=False
+
+    def top_count_by_criteria(self,current_figure, current_axis, options, popup, axis):
+        if 'filter' in options:
+            filterset=self._ds.query(options['filter'])
+        else:
+            filterset=self._ds
+
+        if options['special'] == 'symptoms':
+            symptomset=self.get_symptoms(filterset)
+            xvalues=[k for k, v in sorted(symptomset.items(), key=lambda x: x[1], reverse=True)]
+            yvalues=[v for k,v in sorted(symptomset.items(), key=lambda x: x[1], reverse=True)]
+
+        queryfield=options['queryfield']
+
+        if ('regex_remove' in options) and (options['regex_remove'] != ''):
+            reBar=options['regex_remove']
+            if not options['special']:
+                filterset=filterset[~filterset[queryfield].str.contains(reBar)]
+            else:
+                xmatch=[re.match(reBar, x) is not None for x in xvalues]
+                xvalues=[x for i,x in enumerate(xvalues) if xmatch[i]]
+                yvalues=[y for i,y in enumerate(yvalues) if xmatch[i]]
+
+        if not options['special']:
+            newds=filterset.value_counts(queryfield).reset_index(name='count')
+        else:
+            newds=xvalues
+
+        if len(newds) < options['max_n']:
+            maxrecords=len(newds)
+        else:
+            maxrecords=options['max_n']
+
+        if 'palette' in options:
+            mypal = sns.color_palette(options['palette'])[0:maxrecords]
+        else:
+            mypal=sns.color_palette('deep')[0:maxrecords]
+
+        axis.cla()
+
+        if not options['special']:
+            xvalues=newds.sort_values(by='count', ascending=False)[queryfield][0:maxrecords]
+            yvalues=newds.sort_values(by='count', ascending=False)['count'][0:maxrecords]
+            descript=self.md.find_field(queryfield)[1].description
+        else:
+            descript="Symptom name"
+
+        if ('orientation' in options) and (options['orientation'] == 'horizontal'):
+            sns.barplot(y=xvalues[0:maxrecords], x=yvalues[0:maxrecords], ax=axis, palette=mypal)
+            axis.set_xlabel("Total records")
+            axis.set_ylabel(descript)
+        else:
+            sns.barplot(x=xvalues, y=yvalues, ax=axis, palette=mypal)
+            axis.set_ylabel("Total records")
+            axis.set_xlabel(descript)
+
+        title=f"Top {maxrecords} for {descript}"
+        if 'filter' in options:
+            if options['absence']:
+                descript="Absence of outcome"
+            else:
+                filterfield = options['filterfield']
+                descript = self.md.find_field(filterfield)[1].description
+            title += f", filtered by {descript}"
+        if ('regex_remove' in options) and (options['regex_remove'] != ''):
+            title +=", outliers removed"
+
+        axis.set_title(title)
+        return xvalues
+
+    def symptom_toggle(self, *args):
+        if self.ids['topcount_symptom'].state == 'down':
+            self.ids['topcount_fieldname'].disabled=True
+        else:
+            self.ids['topcount_fieldname'].disabled = False
+
+    def toggle_filterfield(self, *args):
+        if self.ids['topcount_absence'].state == 'down':
+            self.ids['topcount_filterfield'].disabled=True
+        else:
+            self.ids['topcount_filterfield'].disabled = False
+
+    def topcount_buildopt(self, current_figure, current_axis, options, popup, axis):
+        lbg=get_color_from_hex(self.currapp._vc['label.background'])
+        lfg=get_color_from_hex(self.currapp._vc['label.textcolor'])
+        tbg=get_color_from_hex(self.currapp._vc['textbox.background'])
+        tfg=get_color_from_hex(self.currapp._vc['textbox.textcolor'])
+        cboxcol=get_color_from_hex(self.currapp._vc['togglebutton.background'])
+
+        lbl1 = ColoredLabel(lbg, color=lfg, text="Max Records?", size_hint=(0.2,0.1))
+        lbl1.pos_hint={'top': 1, 'x': 0}
+        tinput1=TextInput(background_color=tbg, foreground_color=tfg, size_hint=(0.8, 0.1), text='30')
+        self.ids['topcount_maxn']=tinput1
+        tinput1.pos_hint= {'top': 1, 'x': 0.2}
+        lbl1a= ColoredLabel(lbg, color=lfg, text="Symptom?", size_hint=(0.2,0.1), pos_hint={'x': 0, 'top': 0.9})
+        tb1a=ToggleButton(size_hint=(None, None), width=75, height=25,
+                          allow_no_selection=True, background_color=cboxcol,
+                          pos_hint={'x': 0.2, 'top': 0.9})
+        self.ids['topcount_symptom']=tb1a
+        tb1a.bind(state=self.symptom_toggle)
+        lbl2 = ColoredLabel(lbg, color=lfg, text="Field?", size_hint=(0.2,0.1))
+        lbl2.pos_hint={'top': 0.8, 'x': 0}
+        spinner1=Spinner(size_hint=(0.8, 0.1), pos_hint={'x': 0.2, 'top': 0.8})
+        fieldnames=self._ds.columns.to_list()
+        spinner1.values=fieldnames
+        if options['queryfield'] != '':
+            spinner1.text=options['queryfield']
+
+        self.ids['topcount_fieldname']=spinner1
+        lbl3 = ColoredLabel(lbg, color=lfg, text="Outlier Regex?", size_hint=(0.2,0.1))
+        lbl3.pos_hint={'top': 0.7, 'x': 0}
+        tinput2 = TextInput(background_color=tbg, foreground_color=tfg, size_hint=(0.8, 0.1), text='')
+        tinput2.pos_hint = {'top': 0.7, 'x': 0.2}
+        self.ids['topcount_outlier']=tinput2
+        lbl4=ColoredLabel(lbg, color=lfg, text="Filter by Outcome?", size_hint=(0.2,0.1))
+        lbl4.pos_hint={'top': 0.6, 'x': 0}
+        spinner2 = Spinner(size_hint=(0.8, 0.1), pos_hint={'x': 0.2, 'top': 0.6})
+        outcomegroup=self.md.datatables['data'].get_group('outcomes')
+        if outcomegroup is not None:
+            fieldnames=[f.description for f in outcomegroup]
+        else:
+            fieldnames=[]
+        spinner2.values=fieldnames
+        self.ids['topcount_filterfield']=spinner2
+        lbl4a=ColoredLabel(lbg, color=lfg, text="Absence of outcome?", size_hint=(0.2,0.1))
+        lbl4a.pos_hint={'top': 0.5, 'x': 0}
+        tb4a=ToggleButton(size_hint=(None, None), width=75, height=25,
+                          allow_no_selection=True, background_color=cboxcol,
+                          pos_hint={'x': 0.2, 'top': 0.5})
+        self.ids['topcount_absence']=tb4a
+        tb4a.bind(state=self.toggle_filterfield)
+        lbl5=ColoredLabel(lbg, color=lfg, text="Orientation?", size_hint=(0.2,0.1))
+        lbl5.pos_hint={'top': 0.4, 'x': 0}
+        spinner3=Spinner(size_hint=(0.8, 0.1), pos_hint={'x': 0.2, 'top': 0.4})
+        self.ids['topcount_orientation']=spinner3
+        spinner3.values=['horizontal', 'vertical']
+        if 'orientation' in options:
+            spinner3.text=options['orientation']
+        else:
+            spinner3.text='vertical'
+
+        return [lbl1, tinput1, lbl1a, tb1a, lbl2, spinner1, lbl3, tinput2,
+                lbl4, lbl4a, tb4a, spinner2, lbl5, spinner3]
+
+    def topcount_checkopt(self, current_figure, current_axis, options, popup, axis):
+        maxnstr=self.ids['topcount_maxn'].text
+        if  maxnstr != '':
+            try:
+                maxnint=int(maxnstr)
+            except Exception as ex:
+                if 'max_n' in options:
+                    maxnint = options['max_n']
+                else:
+                    maxnint=30
+
+        options['max_n']=maxnint
+        if self.ids['topcount_symptom'].state == 'down':
+            options['special'] = 'symptoms'
+            options['queryfield'] = 'symptomtext'
+        else:
+            options['special'] == False
+            options['queryfield']=self.ids['topcount_fieldname'].text
+        options['regex_remove']=self.ids['topcount_outlier'].text
+        options['absence'] = False
+        outcomegroup = self.md.datatables['data'].get_group('outcomes')
+        if self.ids['topcount_filterfield'].text != '':
+            ffield=[f.name for f in outcomegroup if f.description == self.ids['topcount_filterfield'].text][0]
+            options['filter']=f"{ffield} == 'Y'"
+            options['filterfield']=ffield
+        elif self.ids['topcount_absence'].state == 'down':
+            options['absence']=True
+            filterlets=[]
+            for field in outcomegroup:
+                filterlets.append(f"({field.name} != 'Y')")
+            options['filter']=' & '.join(filterlets)
+        else:
+            options.pop('filter', None)
+            options['filterfield']=''
+
+        if self.ids['topcount_orientation'].text == '':
+            options['orientation']='vertical'
+        else:
+            options['orientation'] = self.ids['topcount_orientation'].text
+
+    def get_symptoms(self, ds: pd.DataFrame) -> dict:
+        dfs=self.currapp.df['symptoms']
+        idlist=sorted(ds['VAERS_ID'].to_list())
+        vid=dfs.VAERS_ID.tolist()
+        s=idlist[0]
+        e=idlist[-1]
+        r=e-s+1
+        b=1+r//100         # ie 1 bin of 100 for 99 records
+        print(f"s={s},e={e},r={r},b={b}")
+        sets=[set() for i in range(b+1)]
+        for id in idlist:
+            sets[(id-s)//b].add(id)
+
+        start_time=time.perf_counter()
+        print('List of list enumeration...')
+        idx=[]
+        for i, y in enumerate(vid):
+            try:
+                if (y>=s) and (y<=e) and (y in sets[(y-s)//b]):
+                    idx.append(i)
+            except:
+                print(f"Exception caught at {i}, {y}, {y-s}//{b}")
+                return None
+        print("taking results...")
+        resultset=dfs.take(idx)
+
+        symptomset=[]
+        for i in range(1,6):
+            symptomset.extend([x for x in resultset[f"SYMPTOM{i}"].evaluate().to_pylist() if x is not None])
+            print(len(symptomset),end=' ')
+
+        c=Counter(symptomset)
+        end_time =time.perf_counter()
+        print(f"that took {end_time-start_time} secs")
+        return c
 
     def stats_thread(self):
         dfs=self.currapp.df['symptoms']
@@ -800,7 +1018,11 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         sns.barplot(data=bymanu, y='index', x='VAX_MANU', palette=mypal, ax=ax2)
         ax2.set_title("Reports by Manufacturer")
         xdata[0].append(bymanu['VAX_MANU'])
-        graph_options[0].append({})
+        graph_options[0].append({'queryfield': 'VAX_MANU', 'max_n': 30,
+                                 'buildopt': self.topcount_buildopt,
+                                 'runopt': self.top_count_by_criteria,
+                                 'checkopt': self.topcount_checkopt
+                                 })
         statusupdate("MPL 3 of 10",8)
         # Numdays cumulative - upper middle
         out=self._ds
@@ -975,7 +1197,11 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         sns.countplot(data=out, y='VAX_TYPE', ax=ts[tsindex], palette="ch:s=2.9,r=-0.5,h=0.8,l=0.7,d=0.2",
                       order=out['VAX_TYPE'].value_counts(ascending=False).iloc[:vcounts].index)
         xdata[1].append(range(0,vcounts))
-        graph_options[1].append({})
+        graph_options[1].append({'queryfield': 'VAX_TYPE', 'max_n': 10,
+                                 'buildopt': self.topcount_buildopt,
+                                 'runopt': self.top_count_by_criteria,
+                                 'checkopt': self.topcount_checkopt
+                                 })
         ts[tsindex].set_title("Incidents by Vaccine Type")
         ts[tsindex].set_xlabel("Number of incidents")
         ts[tsindex].set_ylabel("Vaccine Type")
@@ -988,7 +1214,11 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         sns.countplot(data=out, y='VAX_DOSE_SERIES', ax=ts[tsindex], palette="ch:s=1.3,r=-0.4,h=0.8,l=0.7,d=0.2",
                       order=out['VAX_DOSE_SERIES'].value_counts(ascending=False).iloc[:dosecount].index)
         xdata[1].append(range(0,dosecount))
-        graph_options[1].append({})
+        graph_options[1].append({'queryfield': 'VAX_DOSE_SERIES', 'max_n': 30,
+                                 'buildopt': self.topcount_buildopt,
+                                 'runopt': self.top_count_by_criteria,
+                                 'checkopt': self.topcount_checkopt
+                                 })
         ts[tsindex].set_title("Incidents by Dose Number")
         ts[tsindex].set_xlabel("Number of incidents")
         ts[tsindex].set_ylabel("Dose number")
@@ -1085,7 +1315,7 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         vbox1=BoxLayout(orientation='vertical')
         hbox1=BoxLayout(orientation='horizontal', padding=5)
 
-        self.md=ModularDataset(self,self.recordFormat)
+        self.md=ModularDataset(self,self.recordFormat,'vaers')
         for content in self.md.content:
             vbox1.add_widget(content)
 
