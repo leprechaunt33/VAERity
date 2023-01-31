@@ -25,6 +25,8 @@ from matplotlib.patches import Rectangle
 from dataframegridview import ColoredButton
 from kivy.garden.matplotlib import FigureCanvasKivyAgg
 
+from modulardataset import ModularDataset
+
 _builderstring = """
 <LoadDialog>:
     BoxLayout:
@@ -87,6 +89,7 @@ class DataQueryStatScreen(Screen):
     current_figure = NumericProperty(0)
     current_axis = NumericProperty(0)
     argument: str = ''
+    md: ModularDataset = None
 
     def scroll_to_current_graph(self):
         currfig: plt.Figure = self.figs[self.current_figure]
@@ -130,6 +133,9 @@ class DataQueryStatScreen(Screen):
         if 'buildopt' in graphopt:
             buildopt=graphopt['buildopt']
             widgetcontent=buildopt(self.current_figure, self.current_axis, graphopt, popupredraw, axis)
+        else:
+            # Don't popup graph options if there are none
+            return
         popcontent=RelativeLayout(size_hint=(1,1))
         for widget in widgetcontent:
             popcontent.add_widget(widget)
@@ -313,7 +319,7 @@ class DataQueryStatScreen(Screen):
         self.current_axis = graphnum
         self.update_graphinfo()
 
-    def set_figure(self,fig, xdata, graph_options):
+    def set_figure(self,fig, xdata, graph_options, md: ModularDataset):
         self.clear_scrollview()
 
         if isinstance(fig,list):
@@ -326,6 +332,9 @@ class DataQueryStatScreen(Screen):
             self.xdata=xdata
             if graph_options is not None:
                 self.graph_options=graph_options
+                print(f"Graph options set to: {graph_options}")
+            if md is not None:
+                self.md = md
         else:
             ka=FigureCanvasKivyAgg(fig)
             ka.size_hint=(None,None)
