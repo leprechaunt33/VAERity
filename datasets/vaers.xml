@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="ansi" ?>
+
+<ModularDataset identifier="VAERS" module="vaers.py">
+	<Dataset>
+		<DataTable name="data" multiplefiles="True" >
+			<Fields>
+				<Field name="VAERS_ID" type="int" key="True" />
+				<Field name="RECVDATE" type="date" dateformat="%m/%d/%Y" allowna="False" groups="dates"/>
+				<Field name="STATE" type="string" allowna="True" description="State" />
+				<Field name="AGE_YRS" type="float" allowna="True" description="Age in years"/>
+				<Field name="CAGE_YR" type="float" allowna="True" description="Calculated age in years"/>
+				<Field name="CAGE_MO" type="float" allowna="True" />
+				<Field name="SEX" type="char" allowna="False" />
+				<Field name="DIED" type="char" allowna="True" description="Deaths" groups="outcomes"/>
+				<Field name="DATEDIED" type="date" dateformat="%m/%d/%Y" allowna="True"
+					   description="Date of Death" groups="dates" />
+				<Field name="HOSPITAL" type="char" allowna="True" description="Hospitalisations" groups="outcomes"/>
+				<Field name="HOSPDAYS" type="int" allowna="True" description="Days hospitalised" />
+				<Field name="NUMDAYS" type="int" allowna="True" description="Days of onset" />
+				<Field name="DISABLE" type="char" allowna="True" description="Disabled" groups="outcomes"/>
+				<Field name="L_THREAT" type="char" allowna="True" description="Life threatening" groups="outcomes"/>
+				<Field name="X_STAY" type="char" allowna="True" description="Prolonged hospitalisation?" groups="outcomes"/>
+				<Field name="RECOVD" type="char" allowna="True" description="Recovered?" groups="outcomes"/>
+				<Field name="ER_VISIT" type="char" allowna="True" description="ER Visit (v1)" groups="outcomes" />
+				<Field name="ER_ED_VISIT" type="char" allowna="True" description="ER Visit (v2)" groups="outcomes" />
+				<Field name="OFC_VISIT" type="char" allowna="True" description="Office/Clinic Visit" groups="outcomes" />
+				<Field name="BIRTH_DEFECT" type="char" allowna="True" description="Birth Defect" groups="outcomes" />
+				<Field name="ONSET_DATE" type="date" dateformat="%m/%d/%Y" allowna="True"
+					   description="Date of onset" groups="dates"/>
+				<Field name="RPT_DATE" type="date" dateformat="%m/%d/%Y" allowna="True"
+					   description="Date form completed (v1)" groups="dates"/>
+				<Field name="VAX_DATE" type="date" dateformat="%m/%d/%Y" allowna="True"
+					   description="Vaccination date" groups="dates" />
+				<Field name="SYMPTOM_TEXT" type="string" maxlength="32000" allowna="True"
+					   description="Symptom text" groups="freetext" />
+				<Field name="LAB_DATA" type="string" maxlength="32000" allowna="True"
+					   description="Lab Data" groups="freetext" />
+				<Field name="HISTORY" type="string" maxlength="32000" allowna="True"
+					   description="Medical History" groups="freetext" />
+				<Field name="OTHER_MEDS" type="string" maxlength="240" allowna="True"
+					   description="Other medications" groups="freetext" />
+				<Field name="ALLERGIES" type="string" maxlength="32000" allowna="True"
+					   description="Allergies" groups="freetext" />
+				<Field name="CUR_ILL" type="string" maxlength="240" allowna="True"
+					   description="Illnesses at vaccination" groups="freetext" />
+				<Field name="PRIOR_VAX" type="string" maxlength="128" allowna="True"
+					   description="Prior vaccination information" />
+				<Field name="FORM_VERS" type="int" description="Form version" />
+				<Field name="SPLTTYPE" type="string" maxlength="25" allowna="True" description="Project report number" />
+			</Fields>
+		</DataTable>
+		<DataTable name="vax" multiplefiles="True">
+			<Fields>
+				<Field name="VAERS_ID" type="int" allowna="False" description="Report Id" />
+				<Field name="VAX_TYPE" type="string" maxlength="15" description="Vaccine Type" />
+				<Field name="VAX_MANU" type="string" maxlength="40" description="Vaccine Manufacturer" />
+				<Field name="VAX_LOT" type="string" maxlength="15" description="Batch number" />
+				<Field name="VAX_DOSE_SERIES" type="string" maxlength="3" description="Dose number" />
+				<Field name="VAX_ROUTE" type="string" maxlength="6" description="Vaccination route" />
+				<Field name="VAX_SITE" type="string" maxlength="6" description="Vaccination site" />
+				<Field name="VAX_NAME" type="string" maxlength="100" description="Vaccination name" />
+			</Fields>
+		</DataTable>
+		<DataTable name="symptoms" multiplefiles="True">
+			<Fields>
+				<Field name="VAERS_ID" type="int" />
+				<Field name="SYMPTOM1" type="string" />
+				<Field name="SYMPTOM2" type="string" />
+				<Field name="SYMPTOM3" type="string" />
+				<Field name="SYMPTOM4" type="string" />
+				<Field name="SYMPTOM5" type="string" />
+			</Fields>
+		</DataTable>
+	</Dataset>
+</ModularDataset>
