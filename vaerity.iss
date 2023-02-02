@@ -6,6 +6,7 @@
 #define MyAppPublisher "Tony Stark Lives Matter"
 #define MyAppURL "https://github.com/leprechaunt33/VAERity/"
 #define MyAppExeName "vaerity.exe"
+#define MyAppIconName "resources\vaerity256x256.ico"
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
@@ -39,13 +40,14 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "{src}\..\vaerity\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{src}\..\vaerity\rootwindow.ini"; DestDir: "{userappdata}"; DestName: "vaerity.ini"; Flags: recursesubdirs createallsubdirs
 Source: "{src}\..\vaerity\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{src}\..\AllVAERSDataCSVS\*"; DestDir: "{code:VAERSFolder}"; Flags: external recursesubdirs createallsubdirs; AfterInstall: EditRootWindowINI
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
-Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autoprograms}\{#MyAppName}"; IconFileName: "{app}\{#MyAppIconName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{autodesktop}\{#MyAppName}"; IconFileName: "{app}\{#MyAppIconName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
@@ -78,7 +80,7 @@ var
   isSuccess: Boolean;
   i: Integer;
 begin
-  isSuccess := LoadStringsFromFile('{app}\rootwindow.ini', Inicontent)
+  isSuccess := LoadStringsFromFile('{userappdata}\vaerity.ini', Inicontent)
   if isSuccess = True then
   begin
     for i := 0 to GetArrayLength(Inicontent)-1 do
@@ -86,7 +88,7 @@ begin
       StringChangeEx(Inicontent[i], 'D:/AllVAERSDataCSVS', '{Code;VAERSFolder}', True);
       StringChangeEx(Inicontent[i], '\', '/', True);
     end;
-    SaveStringsToFile('{app}\rootwindow.ini', Inicontent, False)
+    SaveStringsToFile('{userappdata}\vaerity.ini', Inicontent, False)
   end
 end;
 
