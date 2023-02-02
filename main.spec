@@ -85,6 +85,7 @@ input("Press a key to continue")
 datas=[
     ('resources', 'resources'),
     ('styles', 'styles'),
+    ('datasets', 'datasets'),
     ('rootwindow.ini', '.')
 ]
 
