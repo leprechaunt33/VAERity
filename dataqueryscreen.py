@@ -233,7 +233,7 @@ class DataQueryViewScreen(Screen):
             print(ex)
 
     def execute_query(self, *args):
-        threading.Thread(target=self.exec_vaex_query).start()
+        self.currapp.start_thread_once(name='execute query', target=self.exec_vaex_query)
 
     def set_checkbox(self,cbname,cbstate):
         print(f"Setting {cbname} to {cbstate}")
