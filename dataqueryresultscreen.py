@@ -712,8 +712,8 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         axis.cla()
 
         if not options['special']:
-            xvalues=newds.sort_values(by='count', ascending=False)[queryfield][0:maxrecords]
-            yvalues=newds.sort_values(by='count', ascending=False)['count'][0:maxrecords]
+            xvalues=newds.sort_values(by='count', ascending=False)[queryfield].iloc[0:maxrecords]
+            yvalues=newds.sort_values(by='count', ascending=False)['count'].iloc[0:maxrecords]
             descript=self.md.find_field(queryfield)[1].description
         else:
             descript="Symptom name"
@@ -738,7 +738,14 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         if ('regex_remove' in options) and (options['regex_remove'] != ''):
             title +=", outliers removed"
 
-        axis.set_title(title)
+        if 'title' not in options:
+            axis.set_title(title)
+        else:
+            axis.set_title(options['title'])
+
+        if 'rotatex' in options:
+            axis.tick_params(axis="x", rotation=options['rotatex'])
+
         return xvalues
 
     def symptom_toggle(self, *args):
@@ -816,6 +823,8 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
                 lbl4, lbl4a, tb4a, spinner2, lbl5, spinner3]
 
     def topcount_checkopt(self, current_figure, current_axis, options, popup, axis):
+        # Pop original title if we're running this via repurpose graph
+        options.pop('title', None)
         maxnstr=self.ids['topcount_maxn'].text
         if  maxnstr != '':
             try:
@@ -831,7 +840,7 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
             options['special'] = 'symptoms'
             options['queryfield'] = 'symptomtext'
         else:
-            options['special'] == False
+            options['special'] = False
             options['queryfield']=self.ids['topcount_fieldname'].text
         options['regex_remove']=self.ids['topcount_outlier'].text
         options['absence'] = False
@@ -854,6 +863,282 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
             options['orientation']='vertical'
         else:
             options['orientation'] = self.ids['topcount_orientation'].text
+
+    def histograms_runopt(self,current_figure, current_axis, options, popup, axis: plt.Axes):
+        axis.cla()
+        if 'queryfield' in options:
+            queryfield=options['queryfield']
+
+        if 'filter' in options:
+            if not isinstance(options['filter'], list):
+                filterset=self._ds.query(options['filter'])
+            else:
+                filterset=None
+        else:
+            filterset=self._ds
+
+        kwarg=dict()
+
+        minx=0
+        maxx=0
+
+        def hist_process(i, q):
+            kwarg.clear()
+            for field in ['bins', 'binrange', 'binwidth', 'alpha', 'cumulative', 'color']:
+                if field in options:
+                    if isinstance(queryfield, list):
+                        kwarg[field] = options[field][i]
+                    else:
+                        kwarg[field] = options[field]
+            for key in list(kwarg.keys()):
+                if kwarg[key] is None:
+                    kwarg.pop(key, None)
+
+            sns.histplot(data=filterset, ax=axis, x=str(q),**kwarg)
+
+        if isinstance(queryfield, list):
+            for i, query in enumerate(queryfield):
+                if ('filter' in options) and isinstance(options['filter'], list):
+                    if options['filter'][i] is None:
+                        filterset=self._ds
+                    else:
+                        filterset=self._ds.query(options['filter'][i])
+                hist_process(i, query)
+                minx = min(minx, filterset[query].min())
+                maxx = max(maxx, filterset[query].max())
+        else:
+            hist_process(0, queryfield)
+            minx=filterset[queryfield].min()
+            maxx= filterset[queryfield].max()
+
+        if 'title' in options:
+            axis.set_title(options['title'])
+        else:
+            descript=self.md.find_field(queryfield)[1].description
+            if 'filterfield' in options:
+                descript=f"{descript}, filtered by {self.md.find_field(options['filterfield'])[1].description}"
+
+            axis.set_title(f"Histogram for {descript}")
+
+        if 'xlim' in options:
+            axis.set_xlim(*options['xlim'])
+
+        if 'ylim' in options:
+            axis.set_ylim(*options['ylim'])
+
+        if 'xlabel' in options:
+            axis.set_xlabel(options['xlabel'])
+
+        if 'ylabel' in options:
+            axis.set_xlabel(options['ylabel'])
+
+        if isinstance(queryfield, list):
+            axis.legend()
+
+        return range(int(minx), int(maxx)+1)
+
+    def histograms_checkopt(self,current_figure, current_axis, options, popup, axis: plt.Axes):
+        options['queryfield']=self.ids['hist_queryfield'].text.split(',')
+        if len(options['queryfield']) == 1:
+            options['queryfield']=options['queryfield'][0]
+        elif len(options['queryfield']) == 0:
+            raise ValueError("You must specify at least one field to generate a histogram for!")
+
+        if self.ids['hist_cumulative'].state == 'down':
+            if isinstance(options['queryfield'], list):
+                options['cumulative']=[True]*len(options['queryfield'])
+            else:
+                options['cumulative']=True
+        else:
+            if isinstance(options['queryfield'], list):
+                options['cumulative']=[False]*len(options['queryfield'])
+            else:
+                options['cumulative']=False
+
+        def process_value(x: str):
+            if re.fullmatch(r'^(\d+)$', str(x)):
+                return int(x)
+            elif re.fullmatch(r'^[0-9.\-]+$', str(x)):
+                return float(x)
+            elif str(x) == '':
+                return None
+            else:
+                return x
+
+        for field in ['binrange', 'bins', 'binwidth', 'color', 'alpha']:
+            textfield=f"hist_{field}"
+            if textfield[-1] != 's':
+                textfield += 's'
+            if self.ids[textfield].text == '':
+                options.pop(field, None)
+                continue
+
+            if field == 'binrange':
+                values=self.ids[textfield].text.split(';')
+                values=[list(map(lambda x: float(x) if x is not None else None,r.split(','))) for r in values]
+            else:
+                values=self.ids[textfield].text.split(',')
+
+            if len(values) == 0:
+                options.pop(field, None)
+                continue
+            elif len(values) == 1:
+                options[field]=process_value(values[0])
+            else:
+                finalvals=[]
+                for v in values:
+                    if isinstance(v, list):
+                        # Currently only binrange is a list of lists
+                        finalvals.append([process_value(v[0]), process_value(v[1])])
+                    else:
+                        finalvals.append(process_value(v))
+
+                options[field]=finalvals
+
+        xlim=self.ids['hist_xlim'].text.split(',')
+        if len(xlim) == 2:
+            options['xlim']=[process_value(xlim[0]), process_value(xlim[1])]
+        else:
+            options.pop('xlim', None)
+
+        filters=self.ids['hist_filters'].text.split('\n')
+        if len(filters) > 1:
+            options['filter']=[f if len(f) > 0 else None for f in filters]
+
+    def histograms_buildopt(self,current_figure, current_axis, options, popup, axis: plt.Axes):
+        lbg=get_color_from_hex(self.currapp._vc['label.background'])
+        lfg=get_color_from_hex(self.currapp._vc['label.textcolor'])
+        tbg=get_color_from_hex(self.currapp._vc['textbox.background'])
+        tfg=get_color_from_hex(self.currapp._vc['textbox.textcolor'])
+        cboxcol=get_color_from_hex(self.currapp._vc['togglebutton.background'])
+
+        lbl1 = ColoredLabel(lbg, color=lfg, text="Cumulative?", size_hint=(0.2,0.1))
+        lbl1.pos_hint={'top': 1, 'x': 0}
+        cbox1=ToggleButton(size_hint_y=None, height=25, size_hint_x=None, width=40, allow_no_selection=True,
+                           background_color=cboxcol, pos_hint={'x': 0.2, 'top': 1})
+        if 'cumulative' in options:
+            if isinstance(options['cumulative'], list):
+                cum=options['cumulative'][0]
+            else:
+                cum=options['cumulative']
+
+            if cum:
+                cbox1.state = 'down'
+            else:
+                cbox1.state = 'normal'
+
+        self.ids['hist_cumulative'] = cbox1
+
+        lbl2 = ColoredLabel(lbg, color=lfg, text="X Bounds", size_hint=(0.2,0.1),
+                            pos_hint={'top': 1, 'x': 0.4})
+        tbox1 = TextInput(background_color=tbg, foreground_color=tfg, size_hint=(0.2, 0.1),
+                          pos_hint = {'top': 1, 'x': 0.6})
+        if 'xlim' in options:
+            tbox1.text=f"{options['xlim'][0]},{options['xlim'][1]}"
+
+        self.ids['hist_xlim']=tbox1
+
+        if 'color' in options:
+            colors=options['color']
+            if isinstance(colors, list):
+                colors=','.join(map(lambda c: '' if c is None else str(c),colors))
+        else:
+            colors=''
+
+        lbl3 = ColoredLabel(lbg, color=lfg, text="Colors", size_hint=(0.2,0.1),
+                            pos_hint={'top': 0.9, 'x': 0})
+        tbox2 = TextInput(background_color=tbg, foreground_color=tfg, size_hint=(0.2, 0.1),
+                          pos_hint = {'top': 0.9, 'x': 0.2}, text=str(colors))
+
+        self.ids['hist_colors']=tbox2
+
+        if 'alpha' in options:
+            alphas=options['alpha']
+            if isinstance(alphas, list):
+                alphas=','.join(map(lambda c: '' if c is None else str(c),alphas))
+        else:
+            alphas=''
+
+        lbl4 = ColoredLabel(lbg, color=lfg, text="Alpha", size_hint=(0.2,0.1),
+                            pos_hint={'top': 0.9, 'x': 0})
+        tbox3 = TextInput(background_color=tbg, foreground_color=tfg, size_hint=(0.2, 0.1),
+                          pos_hint = {'top': 0.9, 'x': 0.2}, text=str(alphas))
+
+        self.ids['hist_alphas']=tbox3
+
+        if 'bins' in options:
+            bins=options['bins']
+            if isinstance(bins, list):
+                bins=','.join(map(lambda c: '' if c is None else str(c),bins))
+        else:
+            bins=''
+
+        lbl5 = ColoredLabel(lbg, color=lfg, text="Bins", size_hint=(0.2,0.1),
+                            pos_hint={'top': 0.9, 'x': 0.4})
+        tbox4 = TextInput(background_color=tbg, foreground_color=tfg, size_hint=(0.2, 0.1),
+                          pos_hint = {'top': 0.9, 'x': 0.6}, text=str(bins))
+
+        self.ids['hist_bins']=tbox4
+
+        if 'binwidth' in options:
+            binwidths = options['binwidth']
+            if isinstance(binwidths, list):
+                binwidths = ','.join(map(lambda c: '' if c is None else str(c), binwidths))
+        else:
+            binwidths = ''
+
+        lbl6 = ColoredLabel(lbg, color=lfg, text="Bin Widths", size_hint=(0.2, 0.1),
+                            pos_hint={'top': 0.8, 'x': 0})
+        tbox5 = TextInput(background_color=tbg, foreground_color=tfg, size_hint=(0.2, 0.1),
+                          pos_hint={'top': 0.8, 'x': 0.2}, text=str(binwidths))
+
+        self.ids['hist_binwidths'] = tbox5
+
+        if ('binrange' in options) and isinstance(options['binrange'], list):
+            binranges = options['binrange']
+            if isinstance(binranges[0], list):
+                binranges=';'.join(','.join(map(lambda c: '' if c is None else str(c), r)) for r in binranges)
+            else:
+                binranges = ','.join(map(lambda c: '' if c is None else str(c), binranges))
+        else:
+            binranges = ''
+
+        lbl7 = ColoredLabel(lbg, color=lfg, text="Bin Ranges", size_hint=(0.2, 0.1),
+                            pos_hint={'top': 0.8, 'x': 0.4})
+        tbox6 = TextInput(background_color=tbg, foreground_color=tfg, size_hint=(0.2, 0.1),
+                          pos_hint={'top': 0.8, 'x': 0.6}, text=binranges)
+
+        self.ids['hist_binranges'] = tbox6
+
+        if ('queryfield' in options) and isinstance(options['queryfield'], list):
+            queryfield = ','.join(map(lambda c: '' if c is None else str(c), options['queryfield']))
+        else:
+            if 'queryfield' in options:
+                queryfield = options['queryfield']
+            else:
+                queryfield = ''
+
+        lbl8 = ColoredLabel(lbg, color=lfg, text="Query Field", size_hint=(0.2, 0.1),
+                            pos_hint={'top': 0.7, 'x': 0})
+        tbox7 = TextInput(background_color=tbg, foreground_color=tfg, size_hint=(0.4, 0.1),
+                          pos_hint={'top': 0.7, 'x': 0.2}, text=queryfield)
+
+        self.ids['hist_queryfield'] = tbox7
+
+        if 'filter' in options:
+            filtertext='\n'.join(options['filter'])
+        else:
+            filtertext=''
+
+        lbl9 = ColoredLabel(lbg, color=lfg, text="Filters", size_hint=(0.2, 0.2),
+                            pos_hint={'top': 0.6, 'x': 0})
+        tbox8 = TextInput(background_color=tbg, foreground_color=tfg, size_hint=(0.4, 0.2),
+                          pos_hint={'top': 0.6, 'x': 0.2}, text=filtertext)
+
+        self.ids['hist_filters']= tbox8
+
+        return [lbl1, cbox1, lbl2, tbox1, lbl3, tbox2, lbl4, tbox3, lbl5, tbox4, lbl6, tbox5,
+                lbl7, tbox6, lbl8, tbox7, lbl9, tbox8]
 
     def get_symptoms(self, ds: pd.DataFrame) -> dict:
         dfs=self.currapp.df['symptoms']
@@ -895,49 +1180,17 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         dfs=self.currapp.df['symptoms']
         dfd=self.currapp.df['data']
         pcounter=time.perf_counter()
-        vid=dfs.VAERS_ID.tolist()
+
         def statusupdate(txt,stp):
             self._popup_status.text = f"{pcounter-time.perf_counter():.3} {txt}"
             self._popup_progress.value = int(stp)
 
-        statusupdate("BEGIN",1)
-
-        s=self.idlist[0]
-        e=self.idlist[-1]
-        r=e-s+1
-        b=1+r//100         # ie 1 bin of 100 for 99 records
-        print(f"s={s},e={e},r={r},b={b}")
-        sets=[set() for i in range(b+1)]
-        for id in self.idlist:
-            sets[(id-s)//b].add(id)
-
-        start_time=time.perf_counter()
-        print('List of list enumeration...')
-        idx=[]
-        for i, y in enumerate(vid):
-            try:
-                if (y>=s) and (y<=e) and (y in sets[(y-s)//b]):
-                    idx.append(i)
-            except:
-                print(f"Exception caught at {i}, {y}, {y-s}//{b}")
-                return None
-        print("taking results...")
-        resultset=dfs.take(idx)
-        end_time =time.perf_counter()
-        statusupdate("SYMPTOM SET EXTRACTED",2)
-
-        symptomset=[]
-        for i in range(1,6):
-            symptomset.extend([x for x in resultset[f"SYMPTOM{i}"].evaluate().to_pylist() if x is not None])
-            print(len(symptomset),end=' ')
-
-        c=Counter(symptomset)
-        statusupdate("SYMPTOM SET COUNTED",3)
+        statusupdate("CREATING GRAPHS",1)
         plt.cla()
         plt.clf()
 
-        fig, (ax)=plt.subplots(3,3, figsize=(25,25), dpi=100)
-        fig=plt.figure(figsize=(25,25), dpi=100)
+        fig, (ax)=plt.subplots(3,3, figsize=(26,25), dpi=100)
+        fig=plt.figure(figsize=(26,25), dpi=100)
         figs=[fig]
         gs0 = fig.add_gridspec(3, 3)
 
@@ -966,7 +1219,7 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         plt.subplots_adjust(left=0.15, top=0.9)
         fig.suptitle(self.summarize_plot(), y=0.98, fontsize=14)
 
-        statusupdate("MPL SETUP DONE",3)
+        statusupdate("MPL SETUP DONE, EXTRACTING DATA",4)
         if not 'osdate' in self._ds.columns.to_list():
             self._ds['osdate']=pd.to_datetime(self._ds.RECVDATE, errors='coerce')
             try:
@@ -982,26 +1235,20 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         OFCVISITS=len(self._ds[self._ds.OFC_VISIT == 'Y'])
         BIRTHDEFECTS=len(self._ds[self._ds.BIRTH_DEFECT == 'Y'])
         LTHREAT=len(self._ds[self._ds.L_THREAT == 'Y'])
-        statusupdate("SIMPLE FILTERS DONE",4)
-        BATCHES=self._ds['VAX_LOT'].str.upper().value_counts().sort_values(ascending=False)
-        statusupdate("BATCHES DONE",5)
-        STATES=self._ds['STATE'].str.upper().value_counts().sort_values()
-        statusupdate("STATES DONE",6)
+        statusupdate("SIMPLE FILTERS DONE",5)
         xsummary=['Deaths','Hospitalisations','Life-threatening?','ER visits','Disabled','Birth Defects','Office/Clinic visits']
         ysummary=[DIED, HOSPITAL, LTHREAT, ERVISITS, DISABLED, BIRTHDEFECTS, OFCVISITS]
 
-        c=np.array([sorted(c.items(), key=lambda k: k[1], reverse=True)],
-                   dtype=[('s',np.dtype('U200')),('c',np.dtype('i4'))])
-        if len(c['c'][0]) > 30:
-            maxsym=30
-        else:
-            maxsym=len(c['c'][0])
-        mypal = sns.color_palette('deep')[0:maxsym]
+        mypal = sns.color_palette('deep')[0:50]
         navals = self._ds.isnull().sum().sort_values().reset_index()
-        bymanu=self._ds.VAX_MANU.value_counts().reset_index()
         xdata=[[]]
         graph_options=[[]]
-        
+        topnkeys={'buildopt': self.topcount_buildopt, 'runopt': self.top_count_by_criteria,
+                  'checkopt': self.topcount_checkopt}
+
+        histkeys={'buildopt': self.histograms_buildopt, 'runopt': self.histograms_runopt,
+                  'checkopt': self.histograms_checkopt}
+
         plt.rcParams['axes.grid']=True
         # NA values - graph at top left
         statusupdate("MPL STARTING",7)
@@ -1010,71 +1257,72 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         sns.barplot(y=navals['index'].to_list(), x=navals[0].to_list(), ax=ax0)
         ax0.set_title("Data Insights by % filled")
         # Top symptoms - left, middle
-        sns.barplot(y=c['s'][0,0:maxsym],x=c['c'][0,0:maxsym], palette=mypal, ax=ax1)
-        ax1.set_title("Most common symptoms")
-        xdata[0].append(c['c'][0,0:maxsym])
-        graph_options[0].append({})
+        symopt={'regex_remove': '', 'orientation': 'horizontal', 'special': 'symptoms',
+                'max_n': 30, 'queryfield': 'symptomtext'}
+        symopt.update(topnkeys)
+        xdat=self.top_count_by_criteria(0, 1, symopt, None, ax1)
+        xdata[0].append(xdat)
+        graph_options[0].append(symopt)
         # Incidents by manufacturer - bottom left.
-        sns.barplot(data=bymanu, y='index', x='VAX_MANU', palette=mypal, ax=ax2)
-        ax2.set_title("Reports by Manufacturer")
-        xdata[0].append(bymanu['VAX_MANU'])
-        graph_options[0].append({'queryfield': 'VAX_MANU', 'max_n': 30,
-                                 'buildopt': self.topcount_buildopt,
-                                 'runopt': self.top_count_by_criteria,
-                                 'checkopt': self.topcount_checkopt
-                                 })
+        symopt={'regex_remove': '', 'orientation': 'horizontal', 'special': False,
+                'queryfield': 'VAX_MANU', 'max_n': 30}
+        symopt.update(topnkeys)
+        xdat=self.top_count_by_criteria(0, 2, symopt, None, ax2)
+        graph_options[0].append(symopt)
+        xdata[0].append(xdat)
         statusupdate("MPL 3 of 10",8)
+        # Histograms and final summary
+        statusupdate("MPL MULTIPLOT",9)
+        symopt={'queryfield': ['AGE_YRS', 'CAGE_YR'], 'bins': [24,24], 'alpha': [None, 0.2], 'title': "Age distribution"}
+        symopt.update(histkeys)
+        xdat = self.histograms_runopt(0, 3, symopt, None, ax3)
+        graph_options[0].append(symopt)
+        xdata[0].append(xdat)
+
+        symopt={'queryfield': 'HOSPDAYS', 'binwidth': 1, 'xlim': [0, 49], 'title': "Hospital Stays"}
+        symopt.update(histkeys)
+        xdat = self.histograms_runopt(0, 4, symopt, None, ax4)
+        graph_options[0].append(symopt)
+        xdata[0].append(xdat)
+
         # Numdays cumulative - upper middle
         out=self._ds
-        sns.histplot(data=out[out.DIED == 'Y'], x="NUMDAYS", binrange=[0, 60], binwidth=1,
-                     cumulative=True, color="red", ax=ax5)
-        xdata[0].append(out['NUMDAYS'].tolist())
-        graph_options[0].append({})
-        sns.histplot(data=out[out.HOSPITAL == 'Y'], x="NUMDAYS",
-                         binrange=[0, 60], binwidth=1, alpha=0.7, cumulative=True, color="blue", ax=ax5)
-        sns.histplot(data=out[(out.DISABLE == 'Y') | (out.L_THREAT == 'Y')], x="NUMDAYS",
-                     binrange=[0, 60], binwidth=1, alpha=0.5, cumulative=True, color="orange", ax=ax5)
-        sns.histplot(data=out[(out.ER_ED_VISIT == 'Y') | (out.ER_VISIT == 'Y')], x="NUMDAYS",
-                     binrange=[0, 60], binwidth=1, alpha=0.2, cumulative=True, color="green", ax=ax5)
-        ax5.set_title("Cumulative by days onset")
-            # Histograms and final summary
-        statusupdate("MPL MULTIPLOT",9)
-        sns.histplot(x=self._ds.HOSPDAYS, bins=50, binrange=[0,49], ax=ax4)
-        ax4.set_title("Hospital Stays")
-
-        sns.histplot(x=self._ds.AGE_YRS, bins=24, ax=ax3)
-        sns.histplot(x=self._ds.CAGE_YR, bins=24, ax=ax3, alpha=0.2)
-        ax3.set_title("Age distribution")
+        symopt={
+            'filter': ["DIED == 'Y'","HOSPITAL == 'Y'","(DISABLE == 'Y') | (L_THREAT == 'Y')", "(ER_VISIT == 'Y') | (ER_ED_VISIT == 'Y')"],
+            'queryfield': ['NUMDAYS']*4, 'color': ['red','blue','orange','green'], 'cumulative': [True]*4,
+            'alpha': [None,0.7, 0.5, 0.2], 'title': 'Cumulative by days onset', 'xlabel': 'Days since vaccination',
+            'binwidth': [1]*4, 'xlim': [0, 60], 'binrange': [[0,365], [0,365], [0,365], [0,365]]
+        }
+        symopt.update(histkeys)
+        xdat = self.histograms_runopt(0, 5, symopt, None, ax5)
+        graph_options[0].append(symopt)
+        xdata[0].append(xdat)
 
         sns.barplot(x=xsummary, y=ysummary, palette=mypal, ax=ax6)
         ax6.set_title("At a glance")
 
-        xdata[0].append(self._ds.HOSPDAYS.tolist())
-        graph_options[0].append({})
-        xdata[0].append(self._ds.AGE_YRS.tolist())
-        graph_options[0].append({})
         xdata[0].append(xsummary)
         graph_options[0].append({})
 
         statusupdate("MPL HISTS DONE",10)
 
-        if len(BATCHES) > 40:
-            maxbatch=40
-        else:
-            maxbatch=len(BATCHES)
+        symopt={'regex_remove': '', 'orientation': 'vertical', 'special': False,
+                'queryfield': 'STATE', 'max_n': 40, 'title': 'Top 40 States in Dataset'}
+        symopt.update(topnkeys)
+        xdat=self.top_count_by_criteria(0, 7, symopt, None, ax7)
+        graph_options[0].append(symopt)
+        xdata[0].append(xdat)
 
-        sns.barplot(x=STATES.index, y=STATES.values, ax=ax7, palette=mypal)
-        ax7.set_title("Top States in Dataset")
-        xdata[0].append(STATES.index)
-        graph_options[0].append({})
-        sns.barplot(x=BATCHES.iloc[0:maxbatch].index, y=BATCHES.iloc[0:maxbatch].values, ax=ax8, palette=mypal)
-        ax8.set_title(f"Top batches ({maxbatch} shown)")
-        xdata[0].append(BATCHES.iloc[0:maxbatch].index)
-        graph_options[0].append({})
+        symopt={'regex_remove': '', 'orientation': 'vertical', 'special': False,
+                'queryfield': 'VAX_LOT', 'max_n': 40, 'rotatex': 45, 'title': 'Top 40 Batches'}
+        symopt.update(topnkeys)
+        xdat=self.top_count_by_criteria(0, 8, symopt, None, ax8)
+        graph_options[0].append(symopt)
+        xdata[0].append(xdat)
+
         statusupdate("MPL PLOT PAGE 1/2 COMPLETE",11)
 
         ax6.tick_params(axis="x", rotation=45)
-        ax8.tick_params(axis="x", rotation=45)
 
         ax0.set_xlabel("Column")
         ax0.set_ylabel("Missing values")
@@ -1123,6 +1371,8 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         graph_options[1].append({})
         tsindex += 1
 
+        BATCHES=xdata[0][8]
+        STATES=xdata[0][7]
         dq=self.currapp.manager.get_screen('dataqueryscreen')
         if (len(BATCHES) == 1) or (dq.ids['VAX_LOT'].tbox.text != ''):
             gby = self._ds.value_counts(['weekdate', 'VAX_LOT'], dropna=False).reset_index(name='count')
@@ -1190,39 +1440,31 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
 
         statusupdate("MPL PLOT PAGE 2/2 BY TIME DONE", 13)
 
-        vcounts=out['VAX_TYPE'].value_counts(ascending=False).count()
-        if vcounts > 10:
-            vcounts=10
-
-        sns.countplot(data=out, y='VAX_TYPE', ax=ts[tsindex], palette="ch:s=2.9,r=-0.5,h=0.8,l=0.7,d=0.2",
-                      order=out['VAX_TYPE'].value_counts(ascending=False).iloc[:vcounts].index)
-        xdata[1].append(range(0,vcounts))
-        graph_options[1].append({'queryfield': 'VAX_TYPE', 'max_n': 10,
-                                 'buildopt': self.topcount_buildopt,
-                                 'runopt': self.top_count_by_criteria,
-                                 'checkopt': self.topcount_checkopt
-                                 })
-        ts[tsindex].set_title("Incidents by Vaccine Type")
+        symopt={'regex_remove': '', 'orientation': 'horizontal', 'special': False,
+                'queryfield': 'VAX_TYPE', 'max_n': 10, 'title': 'Incidents by Vaccine Type',
+                'palette': "ch:s=2.9,r=-0.5,h=0.8,l=0.7,d=0.2"}
+        symopt.update(topnkeys)
+        xdat=self.top_count_by_criteria(1, 2, symopt, None, ts[tsindex])
+        graph_options[1].append(symopt)
+        xdata[1].append(xdat)
         ts[tsindex].set_xlabel("Number of incidents")
         ts[tsindex].set_ylabel("Vaccine Type")
         tsindex += 1
 
-        dosecount=out['VAX_DOSE_SERIES'].value_counts(ascending=False).count()
-        if dosecount > 10:
-            dosecount=10
+        statusupdate("MPL PLOT PAGE 2/2 BY VAX_TYPE DONE", 14)
 
-        sns.countplot(data=out, y='VAX_DOSE_SERIES', ax=ts[tsindex], palette="ch:s=1.3,r=-0.4,h=0.8,l=0.7,d=0.2",
-                      order=out['VAX_DOSE_SERIES'].value_counts(ascending=False).iloc[:dosecount].index)
-        xdata[1].append(range(0,dosecount))
-        graph_options[1].append({'queryfield': 'VAX_DOSE_SERIES', 'max_n': 30,
-                                 'buildopt': self.topcount_buildopt,
-                                 'runopt': self.top_count_by_criteria,
-                                 'checkopt': self.topcount_checkopt
-                                 })
-        ts[tsindex].set_title("Incidents by Dose Number")
+        symopt={'regex_remove': '', 'orientation': 'horizontal', 'special': False,
+                'queryfield': 'VAX_DOSE_SERIES', 'max_n': 10, 'title': 'Incidents by Dose Number',
+                'palette': "ch:s=2.9,r=-0.5,h=0.8,l=0.7,d=0.2"}
+        symopt.update(topnkeys)
+        xdat=self.top_count_by_criteria(1, 3, symopt, None, ts[tsindex])
+        graph_options[1].append(symopt)
+        xdata[1].append(xdat)
         ts[tsindex].set_xlabel("Number of incidents")
         ts[tsindex].set_ylabel("Dose number")
         tsindex += 1
+
+        statusupdate("MPL PLOT PAGE 2/2 BY DOSE DONE", 15)
 
         limited_ds=self._ds[['DIED','HOSPITAL','DISABLE', 'ER_ED_VISIT', 'L_THREAT', 'weekdate']].groupby('weekdate').count()
         sns.lineplot(data=limited_ds, ax=ts[tsindex])
@@ -1235,20 +1477,18 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         ts[tsindex].set_xlabel("Week")
         tsindex +=1
 
-        #sns.heatmap(pivot, ax=ts[tsindex])
         statusupdate("MPL PLOT PAGE 2/2 COMPLETE",20)
         figs.append(fig2)
         self.showplot(figs, xdata, graph_options)
 
     def statsscreen(self, *args):
-        self.idlist=sorted(self._ds['VAERS_ID'].to_list())
-        threading.Thread(target=self.stats_thread).start()
         self._popup_progress=ProgressBar(max=20)
         self._popup_status=Label()
         hbox1=BoxLayout(orientation='vertical')
         hbox1.add_widget(self._popup_progress)
         hbox1.add_widget(self._popup_status)
         self._popup=Popup(size_hint=(0.9,0.3), content=hbox1, title="Preparing statistics...")
+        self.currapp.start_thread_once(name='stats generation', target=self.stats_thread)
         self._popup.open()
 
     def build_navigation_strip(self):
