@@ -1,6 +1,7 @@
 import os
 import datetime
 import re
+import traceback
 from datetime import timedelta, datetime
 import time
 import kivy.garden.matplotlib
@@ -16,6 +17,7 @@ from kivy.uix.relativelayout import RelativeLayout
 from kivy.uix.screenmanager import Screen
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.spinner import Spinner
+from kivy.uix.textinput import TextInput
 from kivy.utils import get_color_from_hex
 from matplotlib import pyplot as plt
 from matplotlib.axis import YAxis, XAxis
@@ -113,7 +115,12 @@ class DataQueryStatScreen(Screen):
         if 'checkopt' in graphopt:
             checkopt=graphopt['checkopt']
             if checkopt is not None:
-                checkopt(self.current_figure, self.current_axis, graphopt, self.popupredraw, axis)
+                try:
+                    checkopt(self.current_figure, self.current_axis, graphopt, self.popupredraw, axis)
+                except Exception as ex:
+                    tb=traceback.format_exc()
+                    print(tb)
+                    return
 
         self.popupredraw.dismiss()
 
@@ -153,6 +160,12 @@ class DataQueryStatScreen(Screen):
         currfig: plt.Figure = statscreen.figs[statscreen.current_figure]
         ax: plt.Axes = currfig.axes[statscreen.current_axis]
         (xmin, xmax) = ax.get_xlim()
+
+        focus=self.currapp.current_focus()
+
+        if (focus is not None) and (isinstance(focus, TextInput) or isinstance(focus, Popup)):
+            return
+
         if (keyname == ']') and ('ctrl' in modifier):
             xdata = statscreen.xdata[statscreen.current_figure][statscreen.current_axis]
             if isinstance(xdata[0], datetime):
@@ -332,7 +345,6 @@ class DataQueryStatScreen(Screen):
             self.xdata=xdata
             if graph_options is not None:
                 self.graph_options=graph_options
-                print(f"Graph options set to: {graph_options}")
             if md is not None:
                 self.md = md
         else:
