@@ -1,5 +1,3 @@
-# TODO: Change startup screen to move to a carousal or random image transition after the logo screen.  Update logo.
-
 import asyncio
 import datetime
 from datetime import timedelta
@@ -8,8 +6,9 @@ import json
 import random
 import time
 import pytz
-import kivy.uix.image
+import os
 from kivy.config import Config
+import kivy.uix.image
 from kivy.graphics import Color, Ellipse
 from kivy.uix.colorpicker import ColorPicker
 from kivy.uix.filechooser import FileChooserListView
@@ -30,7 +29,6 @@ from dataquerystatscreen import DataQueryStatScreen
 from kivystyles import KivyStyles
 
 Config.set('input', 'mouse', 'mouse,multitouch_on_demand')
-import os
 import threading
 import matplotlib.pyplot as plt
 from kivy.app import App
@@ -255,6 +253,26 @@ class RootWindow(App):
 
     def keyboard_closed(self, *args):
         self._keyboard=None
+
+    def get_application_config(self):
+        if 'APPDATA' in os.environ:
+            folder=os.environ['APPDATA']
+        else:
+            folder = os.path.expanduser('~')
+
+        return super().get_application_config(str(os.path.join(folder, 'vaerity.ini')))
+
+    def start_thread_once(self, name, target, args = None):
+        for thread in threading.enumerate():
+            if thread.name == name:
+                print(f"Not starting new thread as one with the name {name} already exists")
+                return False
+
+        if args is None:
+            args = ()
+
+        threading.Thread(name=name, target=target, args=args).start()
+        return True
 
     def load_style(self, *args):
         self.dismiss_style()
@@ -505,7 +523,7 @@ class RootWindow(App):
         self.showplot(plt.gcf(),'heatmapscreen')
 
     def start_report_1(self, *args):
-        threading.Thread(target=self.call_report_1).start()
+        self.start_thread_once(name='report 1',target=self.call_report_1)
 
     def call_report_2(self):
         helperfunc.piecharts1(self.df['data'], self)
@@ -514,7 +532,7 @@ class RootWindow(App):
     def start_report_2(self, *args):
         plt.clf()
         plt.cla()
-        threading.Thread(target=self.call_report_2).start()
+        self.start_thread_once(name='report 2', target=self.call_report_2)
 
     def call_report_3(self):
         helperfunc.symptoms(self.df['symptoms'], self)
@@ -523,7 +541,7 @@ class RootWindow(App):
     def start_report_3(self, *args):
         plt.clf()
         plt.cla()
-        threading.Thread(target=self.call_report_3).start()
+        self.start_thread_once(name='report 3',target=self.call_report_3)
 
     def call_report_4(self, searchTerm):
         helperfunc.filtersymptoms(self.df['symptoms'],searchTerm, self)
@@ -531,7 +549,7 @@ class RootWindow(App):
 
     def startsymptomsearch(self, *args):
         self._psearch.dismiss()
-        threading.Thread(target=self.call_report_4, args=[self.ids['txtinput'].text]).start()
+        self.start_thread_once(name='symptom search',target=self.call_report_4, args=[self.ids['txtinput'].text])
 
     def start_report_4(self, *args):
         wrapbox = BoxLayout(orientation='vertical')
@@ -560,7 +578,7 @@ class RootWindow(App):
         self.showplot(plt.gcf(),'heatmapscreen')
 
     def start_report_5(self,*args):
-        threading.Thread(target=self.heatmap).start()
+        self.start_thread_once(name='heatmap',target=self.heatmap)
 
 
     def dataqueryscreen(self,*args):
@@ -660,7 +678,7 @@ class RootWindow(App):
         self.loaded=True
 
     def startdbimport(self,*args):
-        threading.Thread(target=self.setupdataframes).start()
+        self.start_thread_once(name='dbimport', target=self.setupdataframes)
 
 
     def build(self):
@@ -775,6 +793,14 @@ class RootWindow(App):
         if s is None:
             return None
 
+        child=self.root_window.children[0]
+        if isinstance(child, Popup):
+            for widget in child.walk():
+                if not hasattr(widget, 'focus'):
+                    continue
+                if widget.focus:
+                    return widget
+
         for widget in s.walk():
             if not hasattr(widget, 'focus'):
                 continue
@@ -782,3 +808,4 @@ class RootWindow(App):
                 return widget
 
         return None
+
