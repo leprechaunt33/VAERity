@@ -8,6 +8,13 @@ if __name__ == "__main__":
     import math, os, re, code
 
     os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+    if 'USERPROFILE' in os.environ:
+        os.environ['KIVY_HOME']=os.environ['APPDATA']
+    else:
+        os.environ['KIVY_HOME']=os.path.expanduser('~')
+
+    from kivy.config import Config
+    Config.read(os.path.join(os.environ['KIVY_HOME'], 'vaerity.ini'))
     freeze_support()
     import pandas as pd
     import vaex as vx
