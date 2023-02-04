@@ -704,10 +704,21 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         else:
             maxrecords=options['max_n']
 
-        if 'palette' in options:
-            mypal = sns.color_palette(options['palette'])[0:maxrecords]
+        if 'palsize' in options:
+            try:
+                palsize=int(options['palsize'])
+            except Exception:
+                palsize=6
         else:
-            mypal=sns.color_palette('deep')[0:maxrecords]
+            palsize=6
+
+        if 'palette' in options:
+            mypal: list = sns.color_palette(options['palette'], palsize)[0:min(palsize,maxrecords)]
+        else:
+            mypal=sns.color_palette('deep',palsize)[0:min(palsize,maxrecords)]
+
+        if ('rpal' in options) and options['rpal']:
+            mypal.reverse()
 
         axis.cla()
 
@@ -819,8 +830,41 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         else:
             spinner3.text='vertical'
 
+        if 'palette' in options:
+            paltext=options['palette']
+        else:
+            paltext='deep'
+
+        lblpal = ColoredLabel(lbg, color=lfg, text="Palette", size_hint=(0.2,0.1),
+                              pos_hint={'x': 0.4, 'top': 1})
+        tbpal = TextInput(background_color=tbg, foreground_color=tfg, size_hint=(0.4, 0.1),
+                          text=paltext, pos_hint={'x': 0.6, 'top': 1})
+        self.ids['topcount_pal'] = tbpal
+
+        cbrpal=ToggleButton(
+            size_hint=(None, None), width=75, height=25,allow_no_selection=True,
+            background_color=cboxcol, pos_hint={'x': 0.6, 'top': 0.9})
+        self.ids['topcount_rpal']=cbrpal
+
+        lblrpal=ColoredLabel(lbg, color=lfg, text="Reverse Palette", size_hint=(0.2,0.1),
+                              pos_hint={'x': 0.4, 'top': 0.9})
+
+        lblspal=ColoredLabel(lbg, color=lfg, text="Palette Size", size_hint=(0.2,0.1),
+                              pos_hint={'x': 0.7, 'top': 0.9})
+
+        if 'palsize' in options:
+            palsize=str(options['palsize'])
+        else:
+            palsize='6'
+
+        tbspal = TextInput(background_color=tbg, foreground_color=tfg, size_hint=(0.1, 0.1),
+                          text=palsize, pos_hint={'x': 0.9, 'top': 0.9})
+        self.ids['topcount_spal']=tbspal
+
+
         return [lbl1, tinput1, lbl1a, tb1a, lbl2, spinner1, lbl3, tinput2,
-                lbl4, lbl4a, tb4a, spinner2, lbl5, spinner3]
+                lbl4, lbl4a, tb4a, spinner2, lbl5, spinner3, tbpal, lblpal,
+                cbrpal, lblrpal, lblspal, tbspal]
 
     def topcount_checkopt(self, current_figure, current_axis, options, popup, axis):
         # Pop original title if we're running this via repurpose graph
@@ -836,7 +880,7 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
                     maxnint=30
 
         options['max_n']=maxnint
-        if self.ids['topcount_symptom'].state == 'down':
+        if (self.ids['topcount_symptom'].state == 'down') or (self.ids['topcount_fieldname'].text == 'symptomtext'):
             options['special'] = 'symptoms'
             options['queryfield'] = 'symptomtext'
         else:
@@ -863,6 +907,26 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
             options['orientation']='vertical'
         else:
             options['orientation'] = self.ids['topcount_orientation'].text
+
+        if self.ids['topcount_pal'].text == '':
+            options.pop('palette', None)
+        else:
+            options['palette']=self.ids['topcount_pal'].text
+
+        if self.ids['topcount_rpal'].state == 'down':
+            options['rpal'] = True
+        else:
+            options['rpal'] = False
+
+        if self.ids['topcount_spal'].text != '':
+            try:
+                options['palsize']=int(self.ids['topcount_spal'].text)
+                if options['palsize'] < 1:
+                    raise ValueError('palsize')
+            except Exception:
+                raise ValueError("If specified, the palette size must be an integer greater than zero!")
+        else:
+            options.pop('palsize', None)
 
     def histograms_runopt(self,current_figure, current_axis, options, popup, axis: plt.Axes):
         axis.cla()
@@ -1046,9 +1110,9 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
             colors=''
 
         lbl3 = ColoredLabel(lbg, color=lfg, text="Colors", size_hint=(0.2,0.1),
-                            pos_hint={'top': 0.9, 'x': 0})
+                            pos_hint={'top': 0.7, 'x': 0.6})
         tbox2 = TextInput(background_color=tbg, foreground_color=tfg, size_hint=(0.2, 0.1),
-                          pos_hint = {'top': 0.9, 'x': 0.2}, text=str(colors))
+                          pos_hint = {'top': 0.7, 'x': 0.8}, text=str(colors))
 
         self.ids['hist_colors']=tbox2
 
@@ -1126,7 +1190,7 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         self.ids['hist_queryfield'] = tbox7
 
         if 'filter' in options:
-            filtertext='\n'.join(options['filter'])
+            filtertext='\n'.join(list(map(lambda f: f if f is not None else '', options['filter'])))
         else:
             filtertext=''
 
@@ -1238,6 +1302,8 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         statusupdate("SIMPLE FILTERS DONE",5)
         xsummary=['Deaths','Hospitalisations','Life-threatening?','ER visits','Disabled','Birth Defects','Office/Clinic visits']
         ysummary=[DIED, HOSPITAL, LTHREAT, ERVISITS, DISABLED, BIRTHDEFECTS, OFCVISITS]
+        xsummary=[xsummary[i] for i, y in sorted(enumerate(ysummary), key=lambda y: y[1], reverse=True)]
+        ysummary=sorted(ysummary, reverse=True)
 
         mypal = sns.color_palette('deep')[0:50]
         navals = self._ds.isnull().sum().sort_values().reset_index()
