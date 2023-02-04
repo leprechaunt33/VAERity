@@ -127,6 +127,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='C:\\Users\\matth\\PycharmProjects\\DAP1\\resources\\vaerity256x256.ico'
 )
 coll = COLLECT(
     exe,
@@ -138,5 +139,4 @@ coll = COLLECT(
     upx=False,
     upx_exclude=[],
     name='vaerity',
-    icon='C:\\Users\\matth\\PycharmProjects\\DAP1\\resources\\vaerity256x256.ico'
 )
