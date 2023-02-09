@@ -2,7 +2,7 @@ import datetime
 import json
 import math
 import pprint
-import re
+import re, os
 import threading
 import time
 from collections import Counter, OrderedDict
@@ -12,7 +12,7 @@ import klembord
 import matplotlib.pyplot as plt
 from kivy.uix.spinner import Spinner
 from kivy.uix.togglebutton import ToggleButton
-
+import pickle
 plt.switch_backend('agg')
 import numpy as np
 import pandas as pd
@@ -157,6 +157,43 @@ class DataQueryResultScreen(Screen):
                     print(element.text)
                 if hasattr(element,'color'):
                     print(element.color)
+        elif (keyname == 'd') and all(m in modifier for m in ['ctrl', 'alt']):
+            self.save_db_state()
+
+    def save_db_state(self, *args):
+        dfdata: pd.DataFrame=self._ds
+
+        def outcome_binary(r):
+            return int(r['DIED'] == 'Y')+int(r['HOSPITAL']=='Y')*2+int(r['DISABLE']=='Y')*4+\
+                int(r['L_THREAT']=='Y')*8+int(r['X_STAY']=='Y')*16+int(r['RECOVD']=='Y')*32+ \
+                int(r['ER_VISIT'] == 'Y') * 64+ int(r['ER_ED_VISIT']=='Y')*128+ \
+                int(r['OFC_VISIT'] == 'Y') * 256 + int(r['BIRTH_DEFECT']=='Y')*512
+
+        dfdata['outcome']=dfdata.apply(outcome_binary, axis=1)
+        pdata=dfdata.sort_values(by='VAERS_ID')[['VAERS_ID', 'outcome']].to_dict()
+        if 'APPDATA' in os.environ:
+            folder=os.environ['APPDATA']
+        else:
+            folder = os.path.expanduser('~')
+
+        pfile=str(os.path.join(folder, 'dbstate.pickle'))
+
+        if os.path.exists(pfile):
+            with open(pfile, "rb") as pickle_file:
+                pdata2=pickle.load(pickle_file)
+            set1=set(pdata2['VAERS_ID'])
+            set2=set(pdata['VAERS_ID'])
+            set3=set1 ^ set2
+            set4=set1 & set3
+            set5=set2 & set3
+            diff_file = str(os.path.join(folder, 'dbstate-difference.txt'))
+            with open(diff_file,"w") as diffy:
+                print(f"Removed: {set4}", file=diffy)
+                print(f"Added: {set5}", file=diffy)
+        else:
+            with open(pfile, "wb") as pickle_file:
+                pickle.dump(pdata, pickle_file)
+
 
     def copy_to_clipboard(self,*args):
         r=self._ds.iloc[self.start_index]
@@ -958,7 +995,25 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
                 if kwarg[key] is None:
                     kwarg.pop(key, None)
 
-            sns.histplot(data=filterset, ax=axis, x=str(q),**kwarg)
+            try:
+                sns.histplot(data=filterset, ax=axis, x=str(q),**kwarg)
+            except ValueError as ex:
+                if not 'bins' in kwarg:
+                    maxval=filterset[str(q)].max()
+                    # So it turns out in some instances even if we expicitly
+                    # set bins if it was not set, histplot can still raise an
+                    # error if there is only one or less values in the result
+                    # set, such as with the monkeypox dataset of 53 records
+                    # In these cases we ignore the failed histogram and keep
+                    # going.
+                    if 'binwidth' in kwarg:
+                        kwarg['bins']=int(maxval/kwarg['binwidth'])
+                        try:
+                            sns.histplot(data=filterset, ax=axis, x=str(q), **kwarg)
+                        except Exception as ex:
+                            print(f"Continuing despite error for histogram for field {q} and kwarg {kwarg}")
+                            print(ex)
+
 
         if isinstance(queryfield, list):
             for i, query in enumerate(queryfield):
@@ -967,10 +1022,14 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
                         filterset=self._ds
                     else:
                         filterset=self._ds.query(options['filter'][i])
+                if len(filterset) == 0:
+                    continue
                 hist_process(i, query)
                 minx = min(minx, filterset[query].min())
                 maxx = max(maxx, filterset[query].max())
         else:
+            if len(filterset) == 0:
+                return list()
             hist_process(0, queryfield)
             minx=filterset[queryfield].min()
             maxx= filterset[queryfield].max()
