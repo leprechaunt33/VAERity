@@ -260,7 +260,7 @@ class FluxCapacitor(RelativeLayout):
         self.set_flux_header_rectangle(fgcolors, bgcolors)
 
     def position_checks(self):
-        print("position_checks entered")
+        print("position_checks entered") if self.debug else None
         self.checks[0].pos = (self.maddog.pos[0] - 15, self.maddog.pos[1] - 25)
         self.checks[1].pos = (self.density.pos[0] + 15, self.density.pos[1] - 25)
         self.checks[2].pos = (self.radius - 8, self.calvinklein.pos[1] + 15)
@@ -564,7 +564,7 @@ class FluxCapacitor(RelativeLayout):
         self.currapp.styles.register_callback(self, 'fluxbounds.linecolor', self.style_callback)
 
     def update_flux(self, *args):
-        print("update_flux entered")
+        print("update_flux entered") if self.debug else None
         self.plutonium.pos = (self.radius-self.plutonium.texture_size[0]/2,
                               self.radius-self.plutonium.texture_size[1]/2)
 
