@@ -40,6 +40,23 @@ class DataQueryViewScreen(Screen):
         resultscreen.set_ds(currapp.ids['graphdata'])
         currapp.manager.current = 'resultscreen'
 
+    def query_final_sanity_check(self, filterset, rs_stats):
+        currapp=self.currapp
+        if len(filterset) == rs_stats[1]:
+            self._statusfield.text = f"No change to the size of the result set {rs_stats[1]}!"
+            return None
+        else:
+            if len(filterset) == 0:
+                self._statusfield.text = f"No results found!  Try again hotshot..."
+                return None
+            currapp.ids['graphdata'] = filterset.drop(['pdate', 'ydate']).to_pandas_df()
+            currapp.update_status(f"{len(currapp.ids['graphdata'])} records stored in graphdata store")
+            self._statusfield.text = f"{len(currapp.ids['graphdata'])} records found {' '.join(str(x) for x in rs_stats)}."
+
+        print(' '.join(str(x) for x in rs_stats))
+        self.popout_results_screen()
+        return None
+
     def exec_vaex_query(self, *args):
         currapp=App.get_running_app()
 
@@ -53,6 +70,18 @@ class DataQueryViewScreen(Screen):
         # by transforming previously logical ors into setwise ors, ditto for ands.  For this to work,
         # the order of operations needs to be changed for the emergency fields to respect operator
         # symmetry in the operator chaining.
+
+        if self.ids['V_ID'].text != '':
+            if re.match(r'^[0-9,]+$', self.ids['V_ID'].text):
+                vids: list=str(self.ids['V_ID'].text).split(',')
+                if len(vids) == 1:
+                    filterset = filterset.filter(f"VAERS_ID == {self.ids['V_ID'].text}", 'and')
+                    print(f"filterset length {len(filterset)} after VAERS_ID == {self.ids['V_ID'].text}")
+                else:
+                    filterset=filterset.filter(f"VAERS_ID == {vids[0]}",'and')
+                    for vid in vids[1:len(vids)]:
+                        filterset = filterset.filter(f"VAERS_ID == {vid}", 'or')
+                return self.query_final_sanity_check(filterset, rs_stats)
 
         fr=self.lorraine.filter_result()
         if fr is not None:
@@ -215,19 +244,7 @@ class DataQueryViewScreen(Screen):
         self._statusfield.text=f"{len(filterset)} records..."
 
         try:
-            if len(filterset) == rs_stats[1]:
-                self._statusfield.text = f"No change to the size of the result set {rs_stats[1]}!"
-                return None
-            else:
-                if len(filterset) == 0:
-                    self._statusfield.text = f"No results found!  Try again hotshot..."
-                    return None
-                currapp.ids['graphdata']=filterset.drop(['pdate','ydate']).to_pandas_df()
-                currapp.update_status(f"{len(currapp.ids['graphdata'])} records stored in graphdata store")
-                self._statusfield.text=f"{len(currapp.ids['graphdata'])} records found {' '.join(str(x) for x in rs_stats)}."
-
-            print(' '.join(str(x) for x in rs_stats))
-            self.popout_results_screen()
+            return self.query_final_sanity_check(filterset, rs_stats)
         except Exception as ex:
             print("Exception triggered")
             print(ex)
@@ -402,7 +419,7 @@ class DataQueryViewScreen(Screen):
         self.jailbird = FluxCapacitor('ER_VISIT','fluxer1',['Yes', 'No', "Don't Care"],
                               ["{name} == 'Y'", "~str_contains({name},'^Y$')", None], [], fluxtext='ER Visit (VAERS 1)')
 
-        self.joey = FluxCapacitor('ER_ED_VISIT','fluxer1',['Yes', 'No', "Don't Care"],
+        self.joey = FluxCapacitor('ER_ED_VISIT','fluxer2',['Yes', 'No', "Don't Care"],
                               ["{name} == 'Y'", "~str_contains({name},'^Y$')", None], [], fluxtext='ER Visit (VAERS 2+)')
 
         self.strickland = FluxCapacitor('OFC_VISIT','fluxofc',['Yes', 'No', "Don't Care"],
@@ -682,6 +699,13 @@ class DataQueryViewScreen(Screen):
         hbox1.add_widget(self.ids['daterange'])
         vbox.add_widget(hbox1)
 
+        hbox1=BoxLayout(orientation='horizontal', size_hint_y=None, height=60, padding=11)
+        self.ids['V_ID']=TextInput(size_hint_y=None, height=50, foreground_color=tboxfg,
+                                   background_color=tboxbg, size_hint_x=0.4)
+        hbox1.add_widget(ColoredLabel(rgba, size_hint_x=0.2, size_hint_y=None, height=50,
+                                      text='VAERS IDs:', color=textcolor))
+        hbox1.add_widget(self.ids['V_ID'])
+        vbox.add_widget(hbox1)
         #hbox1=BoxLayout(orientation='horizontal', size_hint_y=None, height=60, padding=11)
         #hbox1.add_widget(
          #   ColoredLabel(rgba, size_hint_x=0.25, size_hint_y=None, height=55, text='Regex batch:', color=textcolor))
