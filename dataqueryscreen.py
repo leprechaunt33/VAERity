@@ -72,7 +72,7 @@ class DataQueryViewScreen(Screen):
         # symmetry in the operator chaining.
 
         if self.ids['V_ID'].text != '':
-            if re.match(r'^[0-9,]+$', self.ids['V_ID'].text):
+            if re.match(r'^[0-9, ]+$', self.ids['V_ID'].text):
                 vids: list=str(self.ids['V_ID'].text).split(',')
                 if len(vids) == 1:
                     filterset = filterset.filter(f"VAERS_ID == {self.ids['V_ID'].text}", 'and')
@@ -668,14 +668,14 @@ class DataQueryViewScreen(Screen):
 
         hbox1=BoxLayout(orientation='horizontal', size_hint_y=None, height=60, padding=11)
         hbox1.add_widget(
-            ColoredLabel(rgba, size_hint_x=0.25, size_hint_y=None, height=50, text='Curremt Age:', color=textcolor))
+            ColoredLabel(rgba, size_hint_x=0.25, size_hint_y=None, height=50, text='Age (CAGE_YR):', color=textcolor))
 
         currapp.rangedfields['CAGE_YR']=RangedNumericField('CAGE_YR', size_hint_x = 0.2)
         hbox1.add_widget(currapp.rangedfields['CAGE_YR'])
         self.ids['CAGE_YR']=currapp.rangedfields['CAGE_YR']
 
         hbox1.add_widget(
-            ColoredLabel(rgba, size_hint_x=0.25, size_hint_y=None, height=50, text='Age at vaccination:', color=textcolor))
+            ColoredLabel(rgba, size_hint_x=0.25, size_hint_y=None, height=50, text='Age (AGE_YRS):', color=textcolor))
 
         currapp.rangedfields['AGE_YRS']=RangedNumericField('AGE_YRS', size_hint_x = 0.2)
         hbox1.add_widget(currapp.rangedfields['AGE_YRS'])
