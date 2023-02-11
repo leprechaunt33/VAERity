@@ -159,6 +159,8 @@ class DataQueryResultScreen(Screen):
                     print(element.color)
         elif (keyname == 'd') and all(m in modifier for m in ['ctrl', 'alt']):
             self.save_db_state()
+        elif (keyname == 'h') and all(m in modifier for m in ['ctrl', 'alt']):
+            self.start_analysis_thread()
 
     def save_db_state(self, *args):
         dfdata: pd.DataFrame=self._ds
@@ -466,7 +468,8 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         lblheight=min(max(pt.texture_size[1]*1.1, 100),600)
         pt.text_size=(self.currapp.root.width * 0.9, lblheight)
         pt.valign='center'
-        print(f"{pt.text} {pt.width} {pt.height} {pt.text_size} {pt.texture_size}")
+        if len(syms) > 30:
+            print(f"{pt.text} {pt.width} {pt.height} {pt.text_size} {pt.texture_size}")
         return pt.text
 
 
@@ -1263,7 +1266,7 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         return [lbl1, cbox1, lbl2, tbox1, lbl3, tbox2, lbl4, tbox3, lbl5, tbox4, lbl6, tbox5,
                 lbl7, tbox6, lbl8, tbox7, lbl9, tbox8]
 
-    def get_symptoms(self, ds: pd.DataFrame) -> dict:
+    def get_symptoms(self, ds: pd.DataFrame, topids: bool = False):
         dfs=self.currapp.df['symptoms']
         idlist=sorted(ds['VAERS_ID'].to_list())
         vid=dfs.VAERS_ID.tolist()
@@ -1290,14 +1293,59 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         resultset=dfs.take(idx)
 
         symptomset=[]
+        if topids:
+            v=resultset["VAERS_ID"].tolist()
+            recordcounts = dict()
+            recordcounts.update({(k, 0) for k in v})
         for i in range(1,6):
-            symptomset.extend([x for x in resultset[f"SYMPTOM{i}"].evaluate().to_pylist() if x is not None])
+            r=resultset[f"SYMPTOM{i}"].evaluate().to_pylist()
+            symptomset.extend([x for x in r if x is not None])
+            if topids:
+                for j, x in enumerate(r):
+                    if r is not None:
+                        recordcounts[v[j]] += 1
             print(len(symptomset),end=' ')
 
         c=Counter(symptomset)
         end_time =time.perf_counter()
         print(f"that took {end_time-start_time} secs")
-        return c
+
+        if topids:
+            tophonkers=[k for k, v in sorted(recordcounts.items(), key=lambda x: x[1], reverse=True) if v > 50]
+            return c, tophonkers
+        else:
+            return c
+
+    def analyse_resultset(self, *args):
+        (c, tophonkers) = self.get_symptoms(self._ds, True)
+        if not 'osdate' in self._ds.columns.to_list():
+            self._ds['osdate']=pd.to_datetime(self._ds.RECVDATE, errors='coerce')
+            try:
+                self._ds['weekdate'] = self._ds['osdate'] - self._ds['osdate'].dt.dayofweek.map(dt.timedelta)
+                self._ds['monthdate'] = self._ds['osdate'].dt.to_period("M")
+            except Exception as ex:
+                print(ex)
+        content=f"Maximum days of onset: {self._ds['NUMDAYS'].max()}\n"
+        content += f"Maximum days of hospitalisation: {self._ds['HOSPDAYS'].max()}\n"
+        content += f"Youngest/Oldest patient: {self._ds['AGE_YRS'].min()}, {self._ds['AGE_YRS'].max()}\n"
+        content += f"Date Range: {self._ds['osdate'].min()}, {self._ds['osdate'].max()}\n"
+        content += f"Top Honkers (>50 symptoms):\n{','.join([str(h) for h in tophonkers])}\n"
+        content += f"Total {len(tophonkers)} honkers.\n"
+        content += f"Maximum symptom count is {tophonkers[0]}.\n"
+        self.update_popup_results(content)
+
+    @mainthread
+    def update_popup_results(self, resulttext):
+        self._popup_results.text=resulttext
+
+    def start_analysis_thread(self, *args):
+        self._popup_results=TextInput()
+        vbox1=BoxLayout(orientation='vertical')
+        vbox1.add_widget(self._popup_results)
+        self._popup=Popup(size_hint=(0.9,0.3), content=vbox1, title="Analysing dataset...")
+        self.currapp.start_thread_once(name='analysis thread', target=self.analyse_resultset)
+        self._popup.open()
+
 
     def stats_thread(self):
         dfs=self.currapp.df['symptoms']
