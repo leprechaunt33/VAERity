@@ -731,8 +731,8 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
                 filterset=filterset[~filterset[queryfield].str.contains(reBar)]
             else:
                 xmatch=[re.match(reBar, x) is not None for x in xvalues]
-                xvalues=[x for i,x in enumerate(xvalues) if xmatch[i]]
-                yvalues=[y for i,y in enumerate(yvalues) if xmatch[i]]
+                xvalues=[x for i,x in enumerate(xvalues) if not xmatch[i]]
+                yvalues=[y for i,y in enumerate(yvalues) if not xmatch[i]]
 
         if not options['special']:
             newds=filterset.value_counts(queryfield).reset_index(name='count')
@@ -823,6 +823,10 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         tinput1=TextInput(background_color=tbg, foreground_color=tfg, size_hint=(0.8, 0.1), text='30')
         self.ids['topcount_maxn']=tinput1
         tinput1.pos_hint= {'top': 1, 'x': 0.2}
+
+        if 'maxn' in options:
+            tinput1.text=str(options['maxn'])
+
         lbl1a= ColoredLabel(lbg, color=lfg, text="Symptom?", size_hint=(0.2,0.1), pos_hint={'x': 0, 'top': 0.9})
         tb1a=ToggleButton(size_hint=(None, None), width=75, height=25,
                           allow_no_selection=True, background_color=cboxcol,
@@ -843,6 +847,10 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         tinput2 = TextInput(background_color=tbg, foreground_color=tfg, size_hint=(0.8, 0.1), text='')
         tinput2.pos_hint = {'top': 0.7, 'x': 0.2}
         self.ids['topcount_outlier']=tinput2
+
+        if 'regex_remove' in options:
+            tinput2.text=str(options['regex_remove'])
+
         lbl4=ColoredLabel(lbg, color=lfg, text="Filter by Outcome?", size_hint=(0.2,0.1))
         lbl4.pos_hint={'top': 0.6, 'x': 0}
         spinner2 = Spinner(size_hint=(0.8, 0.1), pos_hint={'x': 0.2, 'top': 0.6})
@@ -1312,12 +1320,13 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
 
         if topids:
             tophonkers=[k for k, v in sorted(recordcounts.items(), key=lambda x: x[1], reverse=True) if v > 50]
-            return c, tophonkers
+            honkcount = [v for k, v in sorted(recordcounts.items(), key=lambda x: x[1], reverse=True) if v > 50]
+            return c, tophonkers, honkcount
         else:
             return c
 
     def analyse_resultset(self, *args):
-        (c, tophonkers) = self.get_symptoms(self._ds, True)
+        (c, tophonkers, honkcount) = self.get_symptoms(self._ds, True)
         if not 'osdate' in self._ds.columns.to_list():
             self._ds['osdate']=pd.to_datetime(self._ds.RECVDATE, errors='coerce')
             try:
@@ -1331,7 +1340,7 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         content += f"Date Range: {self._ds['osdate'].min()}, {self._ds['osdate'].max()}\n"
         content += f"Top Honkers (>50 symptoms):\n{','.join([str(h) for h in tophonkers])}\n"
         content += f"Total {len(tophonkers)} honkers.\n"
-        content += f"Maximum symptom count is {tophonkers[0]}.\n"
+        content += f"Maximum symptom count is {honkcount[0]}.\n"
         self.update_popup_results(content)
 
     @mainthread
