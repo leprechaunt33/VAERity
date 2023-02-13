@@ -1,6 +1,7 @@
 # Press Shift+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 # Only import if __main__ to prevent multithreading creating duplicate windows
+import traceback
 from multiprocessing import freeze_support
 
 if __name__ == "__main__":
@@ -41,7 +42,10 @@ def setprogress(num):
 async def runtasks():
     rootspace=RootWindow()
     await asyncio.sleep(0)
-    taskoutput = await asyncio.gather(rootspace.base())
+    try:
+        taskoutput = await asyncio.gather(rootspace.base())
+    except Exception as ex:
+        print(traceback.print_exc())
 
 
 
