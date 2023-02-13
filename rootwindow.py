@@ -7,6 +7,7 @@ import random
 import time
 import pytz
 import os
+import vaex.viz
 from kivy.config import Config
 import kivy.uix.image
 from kivy.graphics import Color, Ellipse
