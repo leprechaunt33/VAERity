@@ -58,11 +58,17 @@ if ep_packages:
     return list(hiddenimports), runtime_hooks
 
 # List of packages that should have their "Distutils entrypoints" included.
-ep_packages = ["vaex.memory.tracker", 'vaex.dataset.opener', 'vaex.task.checker', 'vaex.file.scheme']
+ep_packages = ["vaex.memory.tracker", 'vaex.dataset.opener', 'vaex.task.checker', 'vaex.file.scheme',
+               'vaex.expression.accessor', 'vaex.dataframe.accessor']
 
 hiddenimports, runtime_hooks = prepare_entrypoints(ep_packages)
 hiddenimports.append('frozendict')
+hiddenimports.append('graphviz')
 hiddenimports.append('vaex.viz')
+hiddenimports.append('vaex.viz.mpl')
+hiddenimports.append('vaex.viz.tensor')
+hiddenimports.append('vaex.viz.vector')
+hiddenimports.append('vaex.viz.contour')
 hiddenimports.append('vaex.hdf5')
 hiddenimports.append('vaex.file')
 hiddenimports.append('vaex.dataset')
