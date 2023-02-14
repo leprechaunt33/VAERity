@@ -611,8 +611,16 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
 
     def patient_outcomes_by_time(self, current_figure, current_axis, options, popup, axis: plt.Axes):
         if options is None:
-            options = {'stacked': False, 'cumulative': False, 'percentage': False}
+            options = {'stacked': False, 'cumulative': False, 'percentage': False, 'absence': False}
         limited_ds: pd.DataFrame=self._ds[['DIED','HOSPITAL','DISABLE', 'ER_ED_VISIT', 'L_THREAT', 'weekdate']].groupby('weekdate').count()
+        if options['absence']:
+            outcomegroup = self.md.datatables['data'].get_group('outcomes')
+            filterlets = []
+            for field in outcomegroup:
+                filterlets.append(f"({field.name} != 'Y')")
+            nooutcomefilter = ' & '.join(filterlets)
+            nooutcome_ds=self._ds.query(nooutcomefilter)
+
         axis.cla()
         stackdict = limited_ds.fillna(value=0).reset_index().to_dict()
         stacklist = []
@@ -628,6 +636,14 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
                     stackcol = [oury[k] for k, v in sorted(ourx.items(), key=lambda x: x[1])]
                 stacklist.append(stackcol)
                 stacklegends.append(col)
+        if options['absence']:
+            if options['percentage']:
+                stackcol = [len(nooutcome_ds[nooutcome_ds.weekdate == v]) * 100 / dslen for k, v in sorted(ourx.items(), key=lambda x: x[1])]
+            else:
+                stackcol = [len(nooutcome_ds[nooutcome_ds.weekdate == v]) for k, v in
+                            sorted(ourx.items(), key=lambda x: x[1])]
+            stacklist.append(stackcol)
+            stacklegends.append('No outcome')
         ourx = [x.date() for x in sorted(ourx.values())]
         if options['stacked']:
             if options['cumulative']:
@@ -650,7 +666,13 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
 
                 axis.legend()
             else:
-                sns.lineplot(data=limited_ds, ax=axis)
+                if options['percentage']:
+                    for i, series in enumerate(stacklist):
+                        axis.plot(ourx, series, label=stacklegends[i])
+
+                    axis.legend()
+                else:
+                    sns.lineplot(data=limited_ds, ax=axis)
         if options['cumulative']:
             axis.set_title("Key patient outcomes by time (cumulative")
         else:
@@ -694,7 +716,17 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
                                                    pos_hint={'x': 0.2, 'top': 0.8})
         hbox3.add_widget(lbl1)
         hbox3.add_widget(self.ids['bytime_percent'])
-        return [hbox1, hbox2, hbox3]
+
+        hbox4 = BoxLayout(orientation='horizontal')
+        lbl1 = ColoredLabel(lbg, color=lfg, text="Include no outcome?", size_hint=(0.2,0.1))
+        lbl1.pos_hint={'top': 0.7, 'x': 0}
+        self.ids['bytime_absence']=ToggleButton(size_hint_y=None, height=25, size_hint_x=None, width=40,
+                                                   allow_no_selection=True, background_color=cboxcol,
+                                                   pos_hint={'x': 0.2, 'top': 0.7})
+        hbox4.add_widget(lbl1)
+        hbox4.add_widget(self.ids['bytime_absence'])
+
+        return [hbox1, hbox2, hbox3, hbox4]
 
     def bytime_checkopt(self, current_figure, current_axis, options, popup, axis):
         if self.ids['bytime_percent'].state == 'down':
@@ -711,6 +743,12 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
             options['cumulative']=True
         else:
             options['cumulative']=False
+
+        if self.ids['bytime_absence'].state == 'down':
+            options['absence']=True
+        else:
+            options['absence']=False
+
 
     def top_count_by_criteria(self,current_figure, current_axis, options, popup, axis):
         if 'filter' in options:
@@ -1334,7 +1372,16 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
                 self._ds['monthdate'] = self._ds['osdate'].dt.to_period("M")
             except Exception as ex:
                 print(ex)
-        content=f"Maximum days of onset: {self._ds['NUMDAYS'].max()}\n"
+
+        outcomegroup = self.md.datatables['data'].get_group('outcomes')
+        filterlets = []
+        for field in outcomegroup:
+            filterlets.append(f"({field.name} != 'Y')")
+        nooutcomefilter = ' & '.join(filterlets)
+        nooutcome=len(self._ds.query(nooutcomefilter))
+
+        content = f"Total records without an outcome: {nooutcome} ({nooutcome*100/len(self._ds):.2f}%)\n"
+        content += f"Maximum days of onset: {self._ds['NUMDAYS'].max()}\n"
         content += f"Maximum days of hospitalisation: {self._ds['HOSPDAYS'].max()}\n"
         content += f"Youngest/Oldest patient: {self._ds['AGE_YRS'].min()}, {self._ds['AGE_YRS'].max()}\n"
         content += f"Date Range: {self._ds['osdate'].min()}, {self._ds['osdate'].max()}\n"
