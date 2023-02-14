@@ -745,7 +745,7 @@ class RootWindow(App):
                 self.button_layout.add_widget(boxn)
             butnum += 1
 
-        self.title="VAERity 1.0RC2"
+        self.title="VAERity 1.0RC3"
 
         mainscreen.add_widget(layout)
         sm.add_widget(mainscreen)
