@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "VAERity"
-#define MyAppVersion "1.0RC2"
+#define MyAppVersion "1.0RC3"
 #define MyAppPublisher "Tony Stark Lives Matter"
 #define MyAppURL "https://github.com/leprechaunt33/VAERity/"
 #define MyAppExeName "vaerity.exe"
