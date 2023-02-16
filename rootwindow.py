@@ -1,16 +1,21 @@
 import asyncio
 import datetime
+import shutil
+import string
 from datetime import timedelta
 import importlib.util
 import json
 import random
 import time
+
+import pandas as pd
 import pytz
 import os
 import vaex.viz
 from kivy.config import Config
 import kivy.uix.image
 from kivy.graphics import Color, Ellipse
+from kivy.uix.actionbar import ActionBar, ActionView, ActionItem, ActionButton, ActionPrevious
 from kivy.uix.colorpicker import ColorPicker
 from kivy.uix.filechooser import FileChooserListView
 from kivy.uix.image import Image
@@ -41,7 +46,7 @@ from kivy.uix.label import Label
 from kivy.uix.progressbar import ProgressBar
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.popup import Popup
-from kivy.properties import ObjectProperty
+from kivy.properties import ObjectProperty, StringProperty
 from kivy.clock import Clock, mainthread
 from kivy.uix.screenmanager import ScreenManager, Screen
 from kivy.lang import Builder
@@ -131,7 +136,8 @@ class HeatMapScreen(Screen):
         self._popup.open()
 
     def save_csv(self, path, file):
-        self._pgrid.dismiss()
+        if hasattr(self, '_pgrid') and self._pgrid is not None:
+            self._pgrid.dismiss()
         self._popup.dismiss()
         App.get_running_app().ids['graphdata'].to_csv(os.path.join(path, file))
 
@@ -218,6 +224,11 @@ class StyleOption(SpinnerOption):
 
 class RootWindow(App):
     _keyboard: Keyboard = None
+    program_name = "VAERity"
+    version = "1.0RC3"
+    merge_source: StringProperty = StringProperty(defaultvalue='')
+    merge_second_source: StringProperty = StringProperty(defaultvalue='')
+    merge_dest: StringProperty = StringProperty(defaultvalue='')
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -599,7 +610,9 @@ class RootWindow(App):
                 child.parent.remove_widget(child)
                 break
 
+        self.mslayout.add_widget(self.actionbar, 1)
         self.mslayout.add_widget(self.button_layout)
+
         Window.size= (800,self.progress.height+self.windowstatus.height+self.button_layout.height+50)
         Window.top=25
 
@@ -681,9 +694,202 @@ class RootWindow(App):
     def startdbimport(self,*args):
         self.start_thread_once(name='dbimport', target=self.setupdataframes)
 
+    def about_program(self, *args):
+        self._popup = Popup(title="About", size_hint=(0.9, 0.9))
+        vbox1=BoxLayout(orientation='vertical')
+        imgfile=self.splashlist[0]
+        img=Image(source=imgfile, size_hint_x=None, width=480)
+        vbox1.add_widget(img)
+        lbl1=Label(text=f"{self.program_name} {self.version}", font_size='12sp',
+                   size_hint=(1, None), height=30)
+        vbox1.add_widget(lbl1)
+        lbl1=Label(text=f"VAERS Folder: {self._vr['vaersfolder']}", font_size='12sp',
+                   size_hint=(1, None), height=30)
+        vbox1.add_widget(lbl1)
+        lbl1=Label(text=f"Frame lengths: {' '.join([f + ': ' + str(len(self.df[f])) for f in self.df.keys()])}",
+                   font_size='12sp', size_hint=(1, None), height=30)
+        vbox1.add_widget(lbl1)
+        self._popup.content=vbox1
+        self._popup.open()
+
+    def merge_change_drive(self, *args):
+        self.fcmerge.path=self.drivespinner.text
+
+    def pick_merge_file1(self, *args):
+        if not self.fcmerge.selection:
+            return
+        self.merge_source=os.path.join(self.fcmerge.path, self.fcmerge.selection[0])
+        self.merge_source_label.text=self.merge_source
+
+    def pick_merge_file2(self, *args):
+        if not self.fcmerge.selection:
+            return
+        self.merge_second_source=os.path.join(self.fcmerge.path, self.fcmerge.selection[0])
+        self.merge_second_source_label.text=self.merge_second_source
+
+    def pick_merge_file3(self, *args):
+        if not self.merge_selection:
+            return
+        self.merge_dest=os.path.join(self.fcmerge.path, self.merge_selection.text)
+        self.merge_dest_label.text=self.merge_dest
+
+    def merge_file_thread(self, *args):
+        self.update_status(f"Loading VAERS IDs from {self.merge_source}")
+        dfsrc=vaex.from_csv(self.merge_source, encoding='latin1')
+        v_ids=sorted(dfsrc.VAERS_ID.tolist())
+        dfsrc.close()
+
+        self.update_status(f"Found {len(v_ids)} unique VAERS IDs. Now loading {self.merge_second_source}...")
+        seenv = dict()
+        for vid in v_ids:
+            seenv[vid]=1
+
+        def seenid(x):
+            if x in seenv:
+                return False
+            else:
+                #seenv[x] = 1
+                return True
+
+        dfsrc2 = vaex.from_csv(self.merge_second_source, encoding='latin1')
+        self.update_status(f"Read {len(dfsrc2)} records from source 2. Filtering...")
+        df_filtered=dfsrc2[dfsrc2.apply(seenid, arguments=[dfsrc2.VAERS_ID])]
+        self.update_status(f"Found {len(df_filtered)} new records. Copying original...")
+
+        shutil.copyfile(self.merge_source, self.merge_dest)
+        self.update_status("Converting to pandas")
+        dfout: pd.DataFrame=df_filtered.to_pandas_df()
+        self.update_status("Sending filtered records to CSV")
+        dfout.to_csv(self.merge_dest,index=False, mode='a', header=False)
+        self.update_status(f"All done.  {self.merge_dest} written to disk")
+
+    def pick_merge_check(self, *args):
+        if not self.merge_source or not self.merge_second_source or not self.merge_dest:
+            return
+
+        self._popup.dismiss()
+        self.start_thread_once('merge file thread', self.merge_file_thread)
+
+    def merge_select_update(self, *args):
+        self.merge_selection.text=self.fcmerge.selection and self.fcmerge.selection[0] or ''
+
+    def pick_merge_1(self, *args):
+        if (not hasattr(self,'drivespinner')) or (hasattr(self, 'drivespinner') and self.drivespinner not in self.xplayout.children):
+            available_drives = ['%s:' % d for d in string.ascii_uppercase if os.path.exists('%s:' % d)]
+            drivespinner=Spinner(size_hint = (1,  None), height=30)
+            drivespinner.pos_hint={'top': 0.8, 'x': 0}
+            drivespinner.values=available_drives
+            drivespinner.text=str(available_drives[0])
+            drivespinner.bind(text=self.merge_change_drive)
+            self.drivespinner=drivespinner
+            self.xplayout.add_widget(drivespinner)
+
+        if (not hasattr(self,'fcmerge')) or (hasattr(self, 'fcmerge') and self.fcmerge not in self.xplayout.children):
+            bbg = get_color_from_hex(self._vc['button.background'])
+            bfg = get_color_from_hex(self._vc['button.textcolor'])
+            lbg = get_color_from_hex(self._vc['label.background'])
+            lfg = get_color_from_hex(self._vc['label.textcolor'])
+            tbg = get_color_from_hex(self._vc['textbox.background'])
+            tfg = get_color_from_hex(self._vc['textbox.textcolor'])
+            lbl1 = ColoredLabel(lbg,color=lfg,text="First Source", size_hint=(0.2, None),
+                                height=30, pos_hint={'top': 0.7, 'x': 0})
+            lbl2 = ColoredLabel(lbg,color=lfg,text="Second Source", size_hint=(0.2, None),
+                                height=30, pos_hint={'top': 0.65, 'x': 0})
+            lbl3 = ColoredLabel(lbg,color=lfg,text="Destination", size_hint=(0.2, None),
+                                height=30, pos_hint={'top': 0.60, 'x': 0})
+            self.xplayout.add_widget(lbl1)
+            self.xplayout.add_widget(lbl2)
+            self.xplayout.add_widget(lbl3)
+            self.merge_source_label=Label(text="None Selected",
+                                          size_hint=(1, None),height=30,
+                                          pos_hint={'top': 0.7, 'x': 0.2})
+            self.merge_second_source_label=Label(text="None Selected",
+                                                        size_hint=(1, None),height=30,
+                                                        pos_hint={'top': 0.65, 'x': 0.2})
+            self.merge_dest_label=Label(text="None Selected",
+                                                 size_hint=(1, None),height=30,
+                                                 pos_hint={'top': 0.60, 'x': 0.2})
+            self.xplayout.add_widget(self.merge_source_label)
+            self.xplayout.add_widget(self.merge_second_source_label)
+            self.xplayout.add_widget(self.merge_dest_label)
+
+            self.fcmerge=FileChooserListView()
+            self.fcmerge.pos_hint={'top': 0.55, 'x': 0}
+            self.fcmerge.size_hint=(1, 0.45)
+            self.xplayout.add_widget(self.fcmerge)
+            btn1 = ColoredButton(bbg, color=bfg, text='File 1', size_hint=(None, None), width=100, height=30)
+            btn2 = ColoredButton(bbg, color=bfg, text='File 2', size_hint=(None, None), width=100, height=30)
+            btn3 = ColoredButton(bbg, color=bfg, text='Dest', size_hint=(None, None), width=100, height=30)
+            btn4 = ColoredButton(bbg, color=bfg, text='Merge', size_hint=(None, None), width=100, height=30)
+            self.mergebutton=btn4
+            btn1.bind(on_release=self.pick_merge_file1)
+            btn2.bind(on_release=self.pick_merge_file2)
+            btn3.bind(on_release=self.pick_merge_file3)
+            btn4.bind(on_release=self.pick_merge_check)
+            hbox1=BoxLayout(orientation='horizontal')
+            hbox1.pos_hint={'top': 0.1, 'x': 0}
+            hbox1.size_hint=(1,None)
+            hbox1.height=30
+            hbox1.add_widget(btn1)
+            hbox1.add_widget(btn2)
+            hbox1.add_widget(btn3)
+            hbox1.add_widget(btn4)
+            self.xplayout.add_widget(hbox1)
+            self.merge_selection=TextInput(background_color=tbg, foreground_color=tfg,
+                                           size_hint=(0.5, None), height=30,
+                                           pos_hint={'top': 0.1, 'x': 0.5})
+            self.fcmerge.bind(selection=self.merge_select_update)
+            self.xplayout.add_widget(self.merge_selection)
+
+        ftype = str(self.mergespin.text).upper()
+        self.fcmerge.filters = [f"*VAERS{ftype}.csv"]
+
+
+        if self.drivespinner.text == '':
+            self.drivespinner.text=self.drivespinner.values[0]
+
+    def merge_export_dialog(self, *args):
+        self._popup = Popup(title="About", size_hint=(0.9, 0.9))
+        xplayout=RelativeLayout(size_hint=(1,1))
+        lbl1 = ColoredLabel(get_color_from_hex(self._vc['label.background']),
+                            color=get_color_from_hex(self._vc['label.textcolor']),
+                            text="Select type of data file to work with", size_hint=(1,None),
+                            height=30, pos_hint={'top': 1, 'x': 0})
+        xplayout.add_widget(lbl1)
+        spin1=Spinner(size_hint=(1, None), height=30)
+        spin1.values=list(self.df.keys())
+        spin1.bind(text=self.pick_merge_1)
+        spin1.pos_hint={'top': 0.9, 'x': 0}
+        self.mergespin=spin1
+        xplayout.add_widget(spin1)
+        self.xplayout=xplayout
+        self._popup.content=xplayout
+        self._popup.open()
+
+    def generate_action_bar(self, *args):
+        self.actionbar=ActionBar()
+        self.actionbar.size_hint=(1,None)
+        self.actionbar.height=40
+        self.actionbar.pos_hint={'top': 1, 'x': 0}
+        actionview: ActionView=ActionView()
+        actionitem1=ActionButton()
+        actionitem1.text="Merge Export"
+        actionitem1.bind(on_release=self.merge_export_dialog)
+        actionitem2=ActionButton()
+        actionitem2.text="About"
+        actionitem2.bind(on_release = self.about_program)
+        resourcesdir = os.path.join(os.path.dirname(__file__), 'resources')
+        actionview.action_previous=ActionPrevious()
+        actionview.action_previous.with_previous=False
+        actionview.action_previous.title="VAERity"
+
+        self.actionbar.add_widget(actionview)
+        actionview.add_widget(actionitem1)
+        actionview.add_widget(actionitem2)
 
     def build(self):
         sm = ScreenManager()
+        self.manager = sm
         self.settings_cls=SettingsWithSidebar
         self._vc=dict(self.config.items('style'))
         self._vr = dict(self.config.items('main'))
@@ -706,6 +912,8 @@ class RootWindow(App):
         self.windowstatus = Label(text='Ready.', font_size='10sp', size_hint=(1, None), height=120)
         box1= BoxLayout(orientation='vertical')
         self.load_splash_screen()
+        self.generate_action_bar()
+
         box1.add_widget(self.splashheader)
         box1.add_widget(self.progress)
         box1.add_widget(self.windowstatus)
@@ -745,7 +953,7 @@ class RootWindow(App):
                 self.button_layout.add_widget(boxn)
             butnum += 1
 
-        self.title="VAERity 1.0RC3"
+        self.title=f"VAERity {self.version} {self._vr['vaersfolder']}"
 
         mainscreen.add_widget(layout)
         sm.add_widget(mainscreen)
@@ -753,7 +961,6 @@ class RootWindow(App):
         sm.add_widget(DataQueryViewScreen(name='dataqueryscreen'))
         sm.add_widget(DataQueryResultScreen(name='resultscreen'))
         sm.add_widget(DataQueryStatScreen(name='statscreen'))
-        self.manager=sm
         self.mainscreen=mainscreen
         self.mslayout=layout
         if os.path.exists(self._vr['vaersfolder']):
@@ -779,6 +986,7 @@ class RootWindow(App):
         elif  key == 'vaersfolder':
             if os.path.exists(value):
                 self._vr = dict(self.config.items('main'))
+                self.title = f"VAERity {self.version} {self._vr['vaersfolder']}"
                 Clock.schedule_once(self.startdbimport, 2)
                 Clock.schedule_interval(self.splashcarousel, 5)
         elif section == 'style':
