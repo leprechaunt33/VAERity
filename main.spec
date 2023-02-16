@@ -92,7 +92,8 @@ datas=[
     ('resources', 'resources'),
     ('styles', 'styles'),
     ('datasets', 'datasets'),
-    ('rootwindow.ini', '.')
+    ('rootwindow.ini', '.'),
+    ('docs', 'docs')
 ]
 
 a = Analysis(
