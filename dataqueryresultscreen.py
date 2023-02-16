@@ -5,6 +5,7 @@ import pprint
 import re, os
 import threading
 import time
+import traceback
 from collections import Counter, OrderedDict
 import datetime as dt
 import inscriptis
@@ -672,7 +673,11 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
 
                     axis.legend()
                 else:
-                    sns.lineplot(data=limited_ds, ax=axis)
+                    for i, series in enumerate(stacklist):
+                        axis.plot(ourx, series, label=stacklegends[i])
+
+                    axis.legend()
+                    #sns.lineplot(data=limited_ds, ax=axis)
         if options['cumulative']:
             axis.set_title("Key patient outcomes by time (cumulative")
         else:
@@ -803,7 +808,10 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         if not options['special']:
             xvalues=newds.sort_values(by='count', ascending=False)[queryfield].iloc[0:maxrecords]
             yvalues=newds.sort_values(by='count', ascending=False)['count'].iloc[0:maxrecords]
-            descript=self.md.find_field(queryfield)[1].description
+            try:
+                descript=self.md.find_field(queryfield)[1].description
+            except Exception:
+                descript=queryfield
         else:
             descript="Symptom name"
 
@@ -822,7 +830,11 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
                 descript="Absence of outcome"
             else:
                 filterfield = options['filterfield']
-                descript = self.md.find_field(filterfield)[1].description
+                try:
+                    descript = self.md.find_field(filterfield)[1].description
+                except Exception:
+                    descript=filterfield
+
             title += f", filtered by {descript}"
         if ('regex_remove' in options) and (options['regex_remove'] != ''):
             title +=", outliers removed"
@@ -1455,6 +1467,12 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
             except Exception as ex:
                 print(ex)
 
+        if not 'country_code' in self._ds.columns.to_list():
+            try:
+                self._ds['country_code'] = self._ds['SPLTTYPE'].str[0:2]
+            except Exception as ex:
+                print(traceback.print_exc())
+
         DIED=len(self._ds[self._ds.DIED == 'Y'])
         HOSPITAL=len(self._ds[self._ds.HOSPITAL == 'Y'])
         ERVISITS=len(self._ds[(self._ds.ER_VISIT == 'Y') | (self._ds.ER_ED_VISIT=='Y')])
@@ -1754,6 +1772,24 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
 
         navstrip.add_widget(btn3)
         self.buttons['clipboard']=btn3
+
+        btn4=ColoredButton(rgba,text='To CSV', color=[1,1,1,1],bold=True,size_hint=[None,None],
+                                   width=90, height=30)
+
+        hms=self.currapp.manager.get_screen('heatmapscreen')
+
+        btn4.bind(on_press=hms.save_csv_dialog)
+
+        navstrip.add_widget(btn4)
+        self.buttons['savecsv']=btn4
+
+        btn5=ColoredButton(bbbg,text='Analyse Dataset', color=bbfg,bold=True,size_hint=[None,None],
+                                   width=100, height=30)
+
+        btn5.bind(on_press=self.start_analysis_thread)
+
+        navstrip.add_widget(btn5)
+        self.buttons['analysis']=btn5
 
         lbl1=ColoredLabel(rhbg, color=rhfg)
         lbl1.text= self.record_header()
