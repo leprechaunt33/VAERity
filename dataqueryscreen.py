@@ -109,6 +109,10 @@ class DataQueryViewScreen(Screen):
             filterset=filterset.filter(feageyears,'and')
             rs_stats.extend(['AGE_YRS', len(filterset)])
 
+        if self.ids['SPLTTYPE'].text != '':
+            filterset=filterset.filter(f"str_contains(SPLTTYPE,'{self.ids['SPLTTYPE'].text}')",'and')
+            rs_stats.extend(['RELAB', len(filterset)])
+
         if self.checks['relab'].state == 'down':
             filterset=filterset.filter(f"str_contains(LAB_DATA,'{self.ids['relabtxt'].text}')",'and')
             rs_stats.extend(['RELAB', len(filterset)])
@@ -706,6 +710,15 @@ class DataQueryViewScreen(Screen):
                                       text='VAERS IDs:', color=textcolor))
         hbox1.add_widget(self.ids['V_ID'])
         vbox.add_widget(hbox1)
+
+        hbox1=BoxLayout(orientation='horizontal', size_hint_y=None, height=60, padding=11)
+        self.ids['SPLTTYPE']=TextInput(size_hint_y=None, height=50, foreground_color=tboxfg,
+                                        background_color=tboxbg, size_hint_x=0.4)
+        hbox1.add_widget(ColoredLabel(rgba, size_hint_x=0.2, size_hint_y=None, height=50,
+                                      text='Report number:', color=textcolor))
+        hbox1.add_widget(self.ids['SPLTTYPE'])
+        vbox.add_widget(hbox1)
+
         #hbox1=BoxLayout(orientation='horizontal', size_hint_y=None, height=60, padding=11)
         #hbox1.add_widget(
          #   ColoredLabel(rgba, size_hint_x=0.25, size_hint_y=None, height=55, text='Regex batch:', color=textcolor))
