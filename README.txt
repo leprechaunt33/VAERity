@@ -77,5 +77,6 @@ and the knowledge gleaned about vaex, kivy and threading that has not yet been c
 on youtube.  Instructional videos are also in the works.
 
 Reach out via one of our channels if you have any questions.  Happy hunting!
+Windows portable binary distribution at https://sourceforge.net/projects/vaerity/
 
 leprechaunt33, 14th-15th February 2022.
