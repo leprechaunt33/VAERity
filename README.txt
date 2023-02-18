@@ -8,7 +8,10 @@ of additional code, a means of querying large data sets graphically using a vari
 standard tools.  Such a function would free data scientists from the need to focus on
 repetitious code and provides a user interface able to be used by developers/data
 scientists and non technical personnel alike.  The road to other data sets is roughly
-3 months of development and UA testing. with 1 release per month.
+3 months of development and UA testing. with 1 release per month.  That's an awful lot
+of coffees :-).  Thankfully, there's https://www.buymeacoffee.com/vaerity and Roma love
+chicken.  Roma work for chicken!  This software written for Beltalowda ;) with shout out
+to Josephus Miller for inspiration.  He knows all the right angles.
 
 VAERity is released under the Creative Commons 3.0 License - Attribution, Non-Commercial,
 Share-Alike.  Development for VAERity began at the end of November 2022 during an upskilling
@@ -74,5 +77,6 @@ and the knowledge gleaned about vaex, kivy and threading that has not yet been c
 on youtube.  Instructional videos are also in the works.
 
 Reach out via one of our channels if you have any questions.  Happy hunting!
+Windows portable binary distribution at https://sourceforge.net/projects/vaerity/
 
 leprechaunt33, 14th-15th February 2022.
