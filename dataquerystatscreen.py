@@ -233,6 +233,8 @@ class DataQueryStatScreen(Screen):
             statscreen.update_graphinfo()
         elif (keyname in '0123456789') and ('ctrl' in modifier):
             graphnum = int(keyname)
+            if graphnum >= len(self.figs[self.current_figure].axes):
+                return
             statscreen.current_axis = graphnum
             if self.spinner_options is not None:
                 self.ids['graphspinner'].text = self.spinner_options[self.current_figure][self.current_axis]
