@@ -148,6 +148,8 @@ class HeatMapScreen(Screen):
         self._popup.open()
 
     def popup_grid(self, *args):
+        if not 'graphdata' in App.get_running_app().ids:
+            return
         scrollable=ScrollView()
         boxPop=BoxLayout(orientation='vertical')
         boxPop.size_hint_x=None
@@ -700,7 +702,7 @@ class RootWindow(App):
         imgfile=self.splashlist[0]
         img=Image(source=imgfile, size_hint_x=None, width=480)
         vbox1.add_widget(img)
-        lbl1=Label(text=f"{self.program_name} {self.version}", font_size='12sp',
+        lbl1=Label(text=f"{self.program_name} {self.version}\nhttps://github.com/leprechaunt33/VAERity\nhttps://www.buymeacoffee.com/vaerity\n", font_size='12sp',
                    size_hint=(1, None), height=30)
         vbox1.add_widget(lbl1)
         lbl1=Label(text=f"VAERS Folder: {self._vr['vaersfolder']}", font_size='12sp',
