@@ -679,7 +679,7 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
                     axis.legend()
                     #sns.lineplot(data=limited_ds, ax=axis)
         if options['cumulative']:
-            axis.set_title("Key patient outcomes by time (cumulative")
+            axis.set_title("Key patient outcomes by time (cumulative)")
         else:
             axis.set_title("Key patient outcomes by time")
         if options['percentage']:
@@ -778,9 +778,15 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
                 yvalues=[y for i,y in enumerate(yvalues) if not xmatch[i]]
 
         if not options['special']:
-            newds=filterset.value_counts(queryfield).reset_index(name='count')
+            newds = filterset.value_counts(queryfield).reset_index(name='count')
         else:
-            newds=xvalues
+            if ('start' in options) and (options['start'] < len(xvalues)):
+                newds=xvalues[options['start']:]
+                xvalues = xvalues[options['start']:]
+                yvalues = yvalues[options['start']:]
+            else:
+                newds=xvalues
+
 
         if len(newds) < options['max_n']:
             maxrecords=len(newds)
@@ -806,8 +812,12 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         axis.cla()
 
         if not options['special']:
-            xvalues=newds.sort_values(by='count', ascending=False)[queryfield].iloc[0:maxrecords]
-            yvalues=newds.sort_values(by='count', ascending=False)['count'].iloc[0:maxrecords]
+            if ('start' in options) and (options['start'] < len(newds)):
+                newds = newds.sort_values(by='count', ascending=False).tail(newds.shape[0] - options['start'])
+            else:
+                newds = newds.sort_values(by='count', ascending=False)
+            xvalues=newds[queryfield].iloc[0:maxrecords]
+            yvalues=newds['count'].iloc[0:maxrecords]
             try:
                 descript=self.md.find_field(queryfield)[1].description
             except Exception:
@@ -820,11 +830,15 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
             axis.set_xlabel("Total records")
             axis.set_ylabel(descript)
         else:
-            sns.barplot(x=xvalues, y=yvalues, ax=axis, palette=mypal)
+            sns.barplot(x=xvalues[0:maxrecords], y=yvalues[0:maxrecords], ax=axis, palette=mypal)
             axis.set_ylabel("Total records")
             axis.set_xlabel(descript)
 
-        title=f"Top {maxrecords} for {descript}"
+        if 'start' in options:
+            title = f"Records {options['start']}-{options['start']+maxrecords} for {descript}"
+        else:
+            title=f"Top {maxrecords} for {descript}"
+
         if 'filter' in options:
             if options['absence']:
                 descript="Absence of outcome"
@@ -868,7 +882,7 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         tfg=get_color_from_hex(self.currapp._vc['textbox.textcolor'])
         cboxcol=get_color_from_hex(self.currapp._vc['togglebutton.background'])
 
-        lbl1 = ColoredLabel(lbg, color=lfg, text="Max Records?", size_hint=(0.2,0.1))
+        lbl1 = ColoredLabel(lbg, color=lfg, text="Range/Max Records", size_hint=(0.2,0.1))
         lbl1.pos_hint={'top': 1, 'x': 0}
         tinput1=TextInput(background_color=tbg, foreground_color=tfg, size_hint=(0.8, 0.1), text='30')
         self.ids['topcount_maxn']=tinput1
@@ -967,11 +981,26 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
     def topcount_checkopt(self, current_figure, current_axis, options, popup, axis):
         # Pop original title if we're running this via repurpose graph
         options.pop('title', None)
-        maxnstr=self.ids['topcount_maxn'].text
-        if  maxnstr != '':
+        options.pop('start', None)
+        maxnstr: str=self.ids['topcount_maxn'].text
+        if maxnstr != '':
+            maxlist=maxnstr.split('-')
+            print(maxlist)
+            if len(maxlist) == 2:
+                try:
+                    options['start']=int(maxlist[0])
+                    maxnstr=str(int(maxlist[1])-options['start'])
+                except Exception as ex:
+                    # If the text is not an int, remove the start index.
+                    # The next try block will also fail and fall back to the
+                    # default.
+                    print(traceback.print_exc())
+                    options.pop('start', None)
+
             try:
                 maxnint=int(maxnstr)
             except Exception as ex:
+                print(traceback.print_exc())
                 if 'max_n' in options:
                     maxnint = options['max_n']
                 else:
