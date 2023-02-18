@@ -493,8 +493,8 @@ class FluxCapacitor(RelativeLayout):
             self.get_wire_colors()
             insgroup: InstructionGroup=self.maddog.canvas.before.get_group('wirecolors')
             print(insgroup)
-            insgroup.children[0].rgba = self.wirecolors[3]
-            insgroup.dr
+            insgroup[0].rgba = self.wirecolors[3]
+            self.maddog.canvas.ask_update()
         elif fluxre.match(key):
             match=fluxre.match(key)
             print(match)
