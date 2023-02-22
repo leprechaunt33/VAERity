@@ -464,7 +464,13 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
 
         pt: Label=caller.ids['patient']
 
-        pt.text=f"PATIENT ({self.formatmissing(row.SEX)}, {self.age(row)}, [color=#2222FF][ref=state]{self.formatmissing(row.STATE)}[/ref][/color]), {len(syms)} symptom(s)\n{', '.join(syms)}\n"
+        if (row.SPLTTYPE is not None) and (row.SPLTTYPE != ''):
+            hdrtext=f"{row.SPLTTYPE}\n"
+        else:
+            hdrtext=''
+
+        hdrtext += f"PATIENT ({self.formatmissing(row.SEX)}, {self.age(row)}, [color=#2222FF][ref=state]{self.formatmissing(row.STATE)}[/ref][/color]), {len(syms)} symptom(s)\n{', '.join(syms)}\n"
+        pt.text=hdrtext
         pt.texture_update()
         lblheight=min(max(pt.texture_size[1]*1.1, 100),600)
         pt.text_size=(self.currapp.root.width * 0.9, lblheight)
@@ -830,7 +836,20 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
             axis.set_xlabel("Total records")
             axis.set_ylabel(descript)
         else:
-            sns.barplot(x=xvalues[0:maxrecords], y=yvalues[0:maxrecords], ax=axis, palette=mypal)
+            if len(xvalues) == 0:
+                print(f"Skipping plot of graph {current_figure}/figure {current_axis} as there are no x values")
+            else:
+                if len(xvalues) < 3:
+                    print(f"Plotting graph of {len(xvalues)} records without a palette to prevent problems.")
+                    if isinstance(xvalues, list):
+                        sns.barplot(x=xvalues[0:maxrecords], y=yvalues[0:maxrecords], ax=axis)
+                    else:
+                        sns.barplot(x=xvalues.iloc[0:maxrecords], y=yvalues.iloc[0:maxrecords], ax=axis)
+                else:
+                    if isinstance(xvalues, list):
+                        sns.barplot(x=xvalues[0:maxrecords], y=yvalues[0:maxrecords], ax=axis, palette=mypal)
+                    else:
+                        sns.barplot(x=xvalues.iloc[0:maxrecords], y=yvalues.iloc[0:maxrecords], ax=axis, palette=mypal)
             axis.set_ylabel("Total records")
             axis.set_xlabel(descript)
 
@@ -934,13 +953,21 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         tb4a.bind(state=self.toggle_filterfield)
         lbl5=ColoredLabel(lbg, color=lfg, text="Orientation?", size_hint=(0.2,0.1))
         lbl5.pos_hint={'top': 0.4, 'x': 0}
-        spinner3=Spinner(size_hint=(0.8, 0.1), pos_hint={'x': 0.2, 'top': 0.4})
+        spinner3=Spinner(size_hint=(0.2, 0.1), pos_hint={'x': 0.2, 'top': 0.4})
         self.ids['topcount_orientation']=spinner3
         spinner3.values=['horizontal', 'vertical']
         if 'orientation' in options:
             spinner3.text=options['orientation']
         else:
             spinner3.text='vertical'
+
+        lbl6=ColoredLabel(lbg, color=lfg, text="X Label Rotation", size_hint=(0.2,0.1))
+        lbl6.pos_hint={'top': 0.4, 'x': 0.4}
+        tinput3 = TextInput(background_color=tbg, foreground_color=tfg, size_hint=(0.2, 0.1), text='')
+        tinput3.pos_hint = {'top': 0.4, 'x': 0.6}
+        self.ids['topcount_rotatex']=tinput3
+        if 'rotatex' in options:
+            tinput3.text=str(options['rotatex'])
 
         if 'palette' in options:
             paltext=options['palette']
@@ -976,12 +1003,13 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
 
         return [lbl1, tinput1, lbl1a, tb1a, lbl2, spinner1, lbl3, tinput2,
                 lbl4, lbl4a, tb4a, spinner2, lbl5, spinner3, tbpal, lblpal,
-                cbrpal, lblrpal, lblspal, tbspal]
+                cbrpal, lblrpal, lblspal, tbspal, lbl6, tinput3]
 
     def topcount_checkopt(self, current_figure, current_axis, options, popup, axis):
         # Pop original title if we're running this via repurpose graph
         options.pop('title', None)
         options.pop('start', None)
+        options.pop('rotatex', None)
         maxnstr: str=self.ids['topcount_maxn'].text
         if maxnstr != '':
             maxlist=maxnstr.split('-')
@@ -1034,6 +1062,13 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
             options['orientation']='vertical'
         else:
             options['orientation'] = self.ids['topcount_orientation'].text
+
+        if self.ids['topcount_rotatex'].text != '':
+            try:
+                options['rotatex'] = float(self.ids['topcount_rotatex'].text)
+            except Exception:
+                # Print exception traceback and do not set a default for rotatex
+                print(traceback.print_exc())
 
         if self.ids['topcount_pal'].text == '':
             options.pop('palette', None)
@@ -1428,7 +1463,10 @@ PATIENT (<data class="patientdata sex" value="{self.formatmissing(r.SEX)}">{self
         content += f"Date Range: {self._ds['osdate'].min()}, {self._ds['osdate'].max()}\n"
         content += f"Top Honkers (>50 symptoms):\n{','.join([str(h) for h in tophonkers])}\n"
         content += f"Total {len(tophonkers)} honkers.\n"
-        content += f"Maximum symptom count is {honkcount[0]}.\n"
+        if len(honkcount) == 0:
+            content += "No honkers.\n"
+        else:
+            content += f"Maximum symptom count is {honkcount[0]}.\n"
         self.update_popup_results(content)
 
     @mainthread
