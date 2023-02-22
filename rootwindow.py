@@ -502,6 +502,7 @@ class RootWindow(App):
             self.splashheader.height=self.splashheader.texture_size[1]
 
         if not self.loaded:
+            Clock.unschedule(self.splashcarousel)
             Clock.schedule_interval(self.splashcarousel,5)
 
     @mainthread
