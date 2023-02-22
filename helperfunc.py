@@ -46,6 +46,7 @@ def vaershandle(what: str = 'DATA', years: object = 'all') -> vx.DataFrame:
                 print(f"Converting {fpath}.csv to hdf5...")
                 df = vx.from_csv(fpath + ".csv", convert=f"{fpath}.hdf5", encoding='latin1')
                 df.close()
+                del df
                 multipath.append(fpath + ".hdf5")
             else:
                 print(f"Skipping nonexistent {year}...")
