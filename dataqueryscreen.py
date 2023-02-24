@@ -2,6 +2,8 @@ import datetime
 import re
 
 import numpy as np
+import pandas as pd
+import pyarrow
 from kivy.clock import Clock, mainthread
 from kivy.core.window import Window
 from kivy.uix.boxlayout import BoxLayout
@@ -40,7 +42,7 @@ class DataQueryViewScreen(Screen):
         resultscreen.set_ds(currapp.ids['graphdata'])
         currapp.manager.current = 'resultscreen'
 
-    def query_final_sanity_check(self, filterset, rs_stats):
+    def query_final_sanity_check(self, filterset, rs_stats, start_time):
         currapp=self.currapp
         if len(filterset) == rs_stats[1]:
             self._statusfield.text = f"No change to the size of the result set {rs_stats[1]}!"
@@ -49,11 +51,47 @@ class DataQueryViewScreen(Screen):
             if len(filterset) == 0:
                 self._statusfield.text = f"No results found!  Try again hotshot..."
                 return None
-            currapp.ids['graphdata'] = filterset.drop(['pdate', 'ydate']).to_pandas_df()
-            currapp.update_status(f"{len(currapp.ids['graphdata'])} records stored in graphdata store")
-            self._statusfield.text = f"{len(currapp.ids['graphdata'])} records found {' '.join(str(x) for x in rs_stats)}."
+
+            try:
+                currapp.ids['graphdata'] = filterset.drop(['pdate', 'ydate']).to_pandas_df()
+            except pyarrow.lib.ArrowInvalid:
+                # String concatenation error
+                self._statusfield.text="Identified problem with data set, fixing..."
+                mydf=pd.DataFrame(columns=filterset.drop(['pdate', 'ydate']).column_names)
+
+                for column, dtype in zip(filterset.drop(['pdate', 'ydate']).column_names, filterset.dtypes):
+                    try:
+                        mydf[column]=filterset[column].tolist()
+                    except pyarrow.lib.ArrowInvalid:
+                        self._statusfield.text = f"Identified problem with data set column {column}, fixing..."
+                        coldata=[]
+
+                        for i1, i2,data in filterset.evaluate_iterator(filterset[column], prefetch=True, chunk_size=100):
+                            try:
+                                if isinstance(data, pyarrow.ChunkedArray):
+                                    x=data.combine_chunks().tolist()
+                                else:
+                                    x = data.tolist()
+                                for i in range(i1,i2):
+                                    coldata.append(str(x[i-i1] or ''))
+                            except Exception:
+                                print(f"Failed at {i1}, {i2}")
+                                print(traceback.print_exc())
+                                coldata.append('')
+                            if i1 % 50 == 0:
+                                self._statusfield.text = f"Identified problem with data set column {column}, fixing {i1}/{len(mydf)}..."
+
+                        mydf[column]=coldata
+                        self._statusfield.text = "Done collating data, setting data store..."
+
+                if len(mydf) > 0:
+                    currapp.ids['graphdata'] = mydf
+            end_time=time.perf_counter()
+            currapp.update_status(f"{len(currapp.ids['graphdata'])} records stored in graphdata store.  Run time {end_time-start_time:.2f} seconds")
+            self._statusfield.text = f"{len(currapp.ids['graphdata'])} records found {' '.join(str(x) for x in rs_stats)}. RUNTIME {end_time-start_time:.2f} sec"
 
         print(' '.join(str(x) for x in rs_stats))
+        print(f"Run time {end_time-start_time:.2f} seconds")
         self.popout_results_screen()
         return None
 
@@ -61,7 +99,7 @@ class DataQueryViewScreen(Screen):
         currapp=App.get_running_app()
 
         self._statusfield.text="Please wait..."
-
+        start_time = time.perf_counter()
         filterset=currapp.df['data']
         rs_stats=['START',len(filterset)]
         # This requires some explanation.  In order to fix a bug in vaex we encountered, as well as
@@ -81,7 +119,7 @@ class DataQueryViewScreen(Screen):
                     filterset=filterset.filter(f"VAERS_ID == {vids[0]}",'and')
                     for vid in vids[1:len(vids)]:
                         filterset = filterset.filter(f"VAERS_ID == {vid}", 'or')
-                return self.query_final_sanity_check(filterset, rs_stats)
+                return self.query_final_sanity_check(filterset, rs_stats, start_time)
 
         fr=self.lorraine.filter_result()
         if fr is not None:
@@ -248,10 +286,10 @@ class DataQueryViewScreen(Screen):
         self._statusfield.text=f"{len(filterset)} records..."
 
         try:
-            return self.query_final_sanity_check(filterset, rs_stats)
+            return self.query_final_sanity_check(filterset, rs_stats, start_time)
         except Exception as ex:
             print("Exception triggered")
-            print(ex)
+            print(traceback.print_exc())
 
     def execute_query(self, *args):
         self.currapp.start_thread_once(name='execute query', target=self.exec_vaex_query)
