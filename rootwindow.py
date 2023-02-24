@@ -227,7 +227,7 @@ class StyleOption(SpinnerOption):
 class RootWindow(App):
     _keyboard: Keyboard = None
     program_name = "VAERity"
-    version = "1.0RC3"
+    version = "1.0RC5"
     merge_source: StringProperty = StringProperty(defaultvalue='')
     merge_second_source: StringProperty = StringProperty(defaultvalue='')
     merge_dest: StringProperty = StringProperty(defaultvalue='')
