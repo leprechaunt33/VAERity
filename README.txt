@@ -1,4 +1,8 @@
-This is version 1.0RC3 of VAERity, a program designed to work with the US Vaccine
+CHANGES IN 1.0RC5: Fixed problems viewing the hallucinations data set and the non COVID19
+symptom regex cardi, related to known pyarrow string overflow issue (transparent workaround
+introduced).
+
+This is version 1.0RC5 of VAERity, a program designed to work with the US Vaccine
 Adverse Events Reporting System or VAERS, specifically the downloadable files
 available at https://vaers.hhs.gov/data/datasets.html
 
@@ -74,9 +78,12 @@ development by following this Github.
 
 5. I also hope to deliver to any programmer patrons videos on the development of the program
 and the knowledge gleaned about vaex, kivy and threading that has not yet been covered fully
-on youtube.  Instructional videos are also in the works.
+on youtube.  Instructional videos are also in the works. Finally, an option is to provide
+downloadable analysis by country of Non Domestic VAERS data in buymeacoffee for regular
+subscribers.
 
 Reach out via one of our channels if you have any questions.  Happy hunting!
 Windows portable binary distribution at https://sourceforge.net/projects/vaerity/
 
 leprechaunt33, 14th-15th February 2022.
+Updated 25/02/2022
